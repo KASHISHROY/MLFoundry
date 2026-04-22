@@ -1,4 +1,4 @@
-# OmniML 🤖
+# MLFOUNDRY
 
 An open-source AutoML platform built for developers and indie hackers.
 
@@ -77,4 +77,3 @@ REFRESH_TOKEN_EXPIRE_DAYS=7
 
 ---
 
-## Project Structure
