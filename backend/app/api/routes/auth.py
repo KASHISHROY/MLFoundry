@@ -75,3 +75,23 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
 def get_me(db: Session = Depends(get_db)):
     """Placeholder — Day 2 we'll add proper auth middleware here."""
     pass
+
+from app.core.security import decode_token
+
+@router.post("/refresh")
+def refresh_token(payload: dict, db: Session = Depends(get_db)):
+    """Get a new access token using refresh token."""
+    token = payload.get("refresh_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Refresh token required")
+
+    data = decode_token(token)
+    if not data or data.get("type") != "refresh":
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    user = db.query(User).filter(User.id == int(data["sub"])).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    new_token = create_access_token(data={"sub": str(user.id)})
+    return {"access_token": new_token, "token_type": "bearer"}

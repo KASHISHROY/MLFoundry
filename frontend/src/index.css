@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .gradient-primary {
+    background: linear-gradient(135deg, #3B82F6, #6366F1);
+  }
+
+  .gradient-text {
+    background: linear-gradient(135deg, #3B82F6, #6366F1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .gradient-border {
+    border: 1px solid transparent;
+    background: linear-gradient(#111827, #111827) padding-box,
+                linear-gradient(135deg, #3B82F6, #6366F1) border-box;
+  }
+
+  .glow {
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+  }
+
+  .glow-hover:hover {
+    box-shadow: 0 0 25px rgba(99, 102, 241, 0.35);
+    transition: box-shadow 0.3s ease;
+  }
+
+  .glow-blue {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.25);
+  }
+}
+
+@layer base {
+  code, pre, .mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}

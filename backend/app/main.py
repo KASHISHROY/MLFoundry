@@ -18,7 +18,7 @@ app = FastAPI(
 # Without this, browser blocks requests from different ports (security policy)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # React runs on port 3000
+    allow_origins=["http://localhost:5173"],  # React runs on port 3000
     allow_credentials=True,
     allow_methods=["*"],    # allow all HTTP methods
     allow_headers=["*"],    # allow all headers
