@@ -4,27 +4,24 @@ import ProtectedRoute from './components/ProtectedRoute'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
+import Upload from './pages/Upload'
 
 export default function App() {
   return (
-    <AuthProvider>          {/* auth state available everywhere */}
-      <BrowserRouter>       {/* enables page navigation */}
+    <AuthProvider>
+      <BrowserRouter>
         <Routes>
-          {/* Public routes — anyone can access */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
 
-          {/* Protected route — only logged in users */}
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/dashboard" element={
+            <ProtectedRoute><Dashboard /></ProtectedRoute>
+          } />
 
-          {/* Default → go to login */}
+          <Route path="/upload" element={
+            <ProtectedRoute><Upload /></ProtectedRoute>
+          } />
+
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </BrowserRouter>
