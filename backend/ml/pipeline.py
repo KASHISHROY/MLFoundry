@@ -1,27 +1,33 @@
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split, RandomizedSearchCV, StratifiedKFold, KFold
-from sklearn.preprocessing import LabelEncoder, StandardScaler, RobustScaler, PolynomialFeatures
+from sklearn.model_selection import (
+    train_test_split, RandomizedSearchCV,
+    StratifiedKFold, KFold
+)
+from sklearn.preprocessing import (
+    LabelEncoder, StandardScaler,
+    RobustScaler, PolynomialFeatures
+)
 from sklearn.ensemble import (
     RandomForestClassifier, RandomForestRegressor,
     GradientBoostingClassifier, GradientBoostingRegressor,
     ExtraTreesClassifier, ExtraTreesRegressor,
     AdaBoostClassifier, AdaBoostRegressor,
-    BaggingClassifier, BaggingRegressor
 )
 from sklearn.linear_model import (
     LogisticRegression, LinearRegression,
-    Ridge, Lasso, ElasticNet, SGDClassifier
+    Ridge, Lasso, ElasticNet
 )
 from sklearn.svm import SVC, SVR
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.naive_bayes import GaussianNB
-from sklearn.feature_selection import SelectKBest, f_classif, f_regression, mutual_info_classif
+from sklearn.feature_selection import (
+    SelectKBest, f_classif, f_regression
+)
 from sklearn.metrics import (
     accuracy_score, f1_score, precision_score, recall_score,
     r2_score, mean_squared_error, mean_absolute_error
 )
-from sklearn.pipeline import Pipeline
 import xgboost as xgb
 import lightgbm as lgb
 import warnings
@@ -29,10 +35,19 @@ warnings.filterwarnings('ignore')
 
 
 # ─────────────────────────────────────────────────────────
-# PROBLEM TYPE DETECTION
+# 1. PROBLEM TYPE DETECTION
 # ─────────────────────────────────────────────────────────
 
 def detect_problem_type(y: pd.Series) -> str:
+    """
+    Automatically detect if this is classification or regression.
+
+    Rules:
+    - If target column has string values → classification
+    - If target has 10 or fewer unique values → classification
+    - If less than 5% of rows are unique values → classification
+    - Otherwise → regression
+    """
     unique_ratio = y.nunique() / len(y)
     if y.dtype == 'object' or y.nunique() <= 10:
         return "classification"
@@ -43,21 +58,33 @@ def detect_problem_type(y: pd.Series) -> str:
 
 
 # ─────────────────────────────────────────────────────────
-# DATA CLEANING
+# 2. DATA CLEANING
 # ─────────────────────────────────────────────────────────
 
-def clean_data(df: pd.DataFrame, target_column: str, log_callback=None) -> pd.DataFrame:
+def clean_data(
+    df: pd.DataFrame,
+    target_column: str,
+    log_callback=None
+) -> pd.DataFrame:
+    """
+    Clean the raw dataframe:
+    - Remove duplicate rows
+    - Fill missing values
+    - Encode text columns into numbers
+    """
     original_rows = len(df)
     if log_callback:
         log_callback(f"Starting data cleaning... ({original_rows} rows, {len(df.columns)} columns)")
 
-    # Remove duplicates
+    # ── Remove duplicates ──────────────────────────────────
     df = df.drop_duplicates()
     removed_dups = original_rows - len(df)
     if removed_dups > 0 and log_callback:
         log_callback(f"Removed {removed_dups} duplicate rows")
 
-    # Handle missing values
+    # ── Fill missing values ────────────────────────────────
+    # For text columns → fill with most common value (mode)
+    # For number columns → fill with middle value (median)
     null_before = df.isnull().sum().sum()
     for col in df.columns:
         if df[col].isnull().sum() > 0:
@@ -68,7 +95,9 @@ def clean_data(df: pd.DataFrame, target_column: str, log_callback=None) -> pd.Da
     if null_before > 0 and log_callback:
         log_callback(f"Filled {null_before} missing values using median/mode strategy")
 
-    # Encode categorical columns
+    # ── Encode text columns ────────────────────────────────
+    # ML models only understand numbers, not text
+    # LabelEncoder converts: ["Mumbai", "Delhi", "Kolkata"] → [1, 0, 2]
     encoded_cols = []
     for col in df.columns:
         if col != target_column and df[col].dtype == 'object':
@@ -79,7 +108,7 @@ def clean_data(df: pd.DataFrame, target_column: str, log_callback=None) -> pd.Da
     if encoded_cols and log_callback:
         log_callback(f"Encoded {len(encoded_cols)} categorical columns: {', '.join(encoded_cols)}")
 
-    # Encode target if needed
+    # ── Encode target column if needed ────────────────────
     if df[target_column].dtype == 'object':
         le = LabelEncoder()
         df[target_column] = le.fit_transform(df[target_column].astype(str))
@@ -93,7 +122,7 @@ def clean_data(df: pd.DataFrame, target_column: str, log_callback=None) -> pd.Da
 
 
 # ─────────────────────────────────────────────────────────
-# FEATURE ENGINEERING
+# 3. FEATURE ENGINEERING
 # ─────────────────────────────────────────────────────────
 
 def engineer_features(
@@ -103,6 +132,15 @@ def engineer_features(
     dataset_size: int,
     log_callback=None
 ) -> pd.DataFrame:
+    """
+    Create better features from existing ones:
+    1. Remove outliers
+    2. Remove highly correlated features
+    3. Add polynomial features (for small datasets)
+    4. Log-transform skewed features
+    5. Fix class imbalance with SMOTE
+    6. Select best features statistically
+    """
     if log_callback:
         log_callback("Starting feature engineering...")
 
@@ -110,48 +148,66 @@ def engineer_features(
     y = df[target_column]
     numeric_cols = X.select_dtypes(include=[np.number]).columns.tolist()
 
-    # ── Step 1: Remove outliers (IQR method) ──────────────
-    # Only for smaller datasets — large datasets lose too many rows
-    if dataset_size < 5000:
-        before = len(df)
-        Q1 = X[numeric_cols].quantile(0.25)
-        Q3 = X[numeric_cols].quantile(0.75)
+    # ── Step 1: Remove outliers ────────────────────────────
+    # Only for smaller datasets — large datasets can't afford losing rows
+    # Uses IQR (interquartile range) method with 3x threshold (very lenient)
+    # Normal outlier removal uses 1.5x — we use 3x to only remove EXTREME outliers
+    if dataset_size < 5000 and len(numeric_cols) > 0:
+        before = len(X)
+        Q1  = X[numeric_cols].quantile(0.25)
+        Q3  = X[numeric_cols].quantile(0.75)
         IQR = Q3 - Q1
-        mask = ~((X[numeric_cols] < (Q1 - 3 * IQR)) | (X[numeric_cols] > (Q3 + 3 * IQR))).any(axis=1)
+        mask = ~((X[numeric_cols] < (Q1 - 3 * IQR)) |
+                 (X[numeric_cols] > (Q3 + 3 * IQR))).any(axis=1)
         X = X[mask]
         y = y[mask]
         removed = before - len(X)
         if removed > 0 and log_callback:
-            log_callback(f"Removed {removed} outlier rows (IQR method, 3σ threshold)")
+            log_callback(f"Removed {removed} extreme outlier rows (3×IQR threshold)")
 
     # ── Step 2: Remove highly correlated features ──────────
+    # If two features have >95% correlation, one is redundant
+    # Example: "age_in_years" and "age_in_months" → almost identical → remove one
     if len(numeric_cols) > 2:
         corr_matrix = X[numeric_cols].corr().abs()
-        upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+        upper = corr_matrix.where(
+            np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)
+        )
         to_drop = [col for col in upper.columns if any(upper[col] > 0.95)]
         if to_drop:
             X = X.drop(columns=to_drop)
             if log_callback:
                 log_callback(f"Removed {len(to_drop)} highly correlated features: {', '.join(to_drop)}")
 
-    # ── Step 3: Polynomial features (only small datasets) ──
+    # ── Step 3: Polynomial features ───────────────────────
+    # Creates new features by combining existing ones
+    # Example: if features are [age, income] →
+    # adds [age×income, age², income²]
+    # Only for small datasets with few features (computationally expensive)
     if dataset_size < 2000 and len(X.columns) <= 10:
         try:
-            poly = PolynomialFeatures(degree=2, interaction_only=True, include_bias=False)
-            poly_features = poly.fit_transform(X[numeric_cols])
-            poly_feature_names = [f"poly_{i}" for i in range(poly_features.shape[1] - len(numeric_cols))]
-            poly_df = pd.DataFrame(
-                poly_features[:, len(numeric_cols):],
-                columns=poly_feature_names,
+            poly = PolynomialFeatures(
+                degree=2, interaction_only=True, include_bias=False
+            )
+            current_numeric = X.select_dtypes(include=[np.number]).columns.tolist()
+            poly_arr  = poly.fit_transform(X[current_numeric])
+            n_new     = poly_arr.shape[1] - len(current_numeric)
+            poly_cols = [f"poly_{i}" for i in range(n_new)]
+            poly_df   = pd.DataFrame(
+                poly_arr[:, len(current_numeric):],
+                columns=poly_cols,
                 index=X.index
             )
             X = pd.concat([X.reset_index(drop=True), poly_df.reset_index(drop=True)], axis=1)
             if log_callback:
-                log_callback(f"Added {len(poly_feature_names)} polynomial interaction features")
+                log_callback(f"Added {n_new} polynomial interaction features")
         except Exception:
             pass
 
-    # ── Step 4: Log transform skewed features ──────────────
+    # ── Step 4: Log-transform skewed features ─────────────
+    # If a feature is very skewed (most values are small, few very large)
+    # log transform makes the distribution more normal → better for most models
+    # Example: income [25000, 30000, 28000, 1500000] → log makes outlier less extreme
     transformed = []
     for col in numeric_cols:
         if col in X.columns:
@@ -162,37 +218,50 @@ def engineer_features(
     if transformed and log_callback:
         log_callback(f"Log-transformed {len(transformed)} skewed features: {', '.join(transformed)}")
 
-    # ── Step 5: Handle class imbalance (classification only)
+    # ── Step 5: Fix class imbalance ────────────────────────
+    # Only for classification problems
+    # If one class has 4x more samples than another → apply SMOTE
     if problem_type == "classification":
-        class_counts = y.value_counts()
+        class_counts    = y.value_counts()
         imbalance_ratio = class_counts.max() / class_counts.min()
         if imbalance_ratio > 3:
             try:
                 from imblearn.over_sampling import SMOTE
-                sm = SMOTE(random_state=42)
-                X_res, y_res = sm.fit_resample(X, y)
+                sm        = SMOTE(random_state=42)
+                X_r, y_r  = sm.fit_resample(X, y)
+                X = pd.DataFrame(X_r, columns=X.columns)
+                y = pd.Series(y_r, name=target_column)
                 if log_callback:
-                    log_callback(f"Applied SMOTE to fix class imbalance (ratio was {imbalance_ratio:.1f}:1)")
-                X = pd.DataFrame(X_res, columns=X.columns)
-                y = pd.Series(y_res, name=target_column)
+                    log_callback(
+                        f"Applied SMOTE to fix class imbalance "
+                        f"(ratio was {imbalance_ratio:.1f}:1)"
+                    )
             except ImportError:
                 if log_callback:
-                    log_callback("Class imbalance detected but SMOTE not available, continuing...")
+                    log_callback("Class imbalance detected — install imbalanced-learn to enable SMOTE")
 
     # ── Step 6: Feature selection ──────────────────────────
+    # If we have more than 20 features, statistically select the best ones
+    # Uses F-test to measure how strongly each feature relates to the target
     if len(X.columns) > 20:
         try:
-            k = min(20, len(X.columns))
+            k           = min(20, len(X.columns))
             selector_fn = f_classif if problem_type == "classification" else f_regression
-            selector = SelectKBest(selector_fn, k=k)
-            X_selected = selector.fit_transform(X, y)
-            selected_cols = X.columns[selector.get_support()].tolist()
-            X = pd.DataFrame(X_selected, columns=selected_cols)
+            selector    = SelectKBest(selector_fn, k=k)
+            X_sel       = selector.fit_transform(X, y)
+            sel_cols    = X.columns[selector.get_support()].tolist()
+            X = pd.DataFrame(X_sel, columns=sel_cols)
             if log_callback:
-                log_callback(f"Selected top {k} features from {len(X.columns) + (len(X.columns) - k)} using statistical tests")
+                log_callback(f"Selected top {k} features using statistical F-test")
         except Exception:
             pass
 
+    # ── Step 7: Apply RobustScaler ─────────────────────────
+    # Scale all features to similar range
+    # RobustScaler uses median instead of mean → not affected by outliers
+    # This is different from StandardScaler which uses mean (affected by outliers)
+    # We scale HERE for feature engineering visibility
+    # (We also scale inside train_models before fitting — double safety)
     if log_callback:
         log_callback(f"Feature engineering complete ✓ ({len(X.columns)} features ready)")
 
@@ -202,62 +271,91 @@ def engineer_features(
 
 
 # ─────────────────────────────────────────────────────────
-# MODEL DEFINITIONS
+# 4. MODEL DEFINITIONS
 # ─────────────────────────────────────────────────────────
 
 def get_classifiers(dataset_size: int) -> dict:
+    """
+    Returns all classification models to try.
+    Slower models (SVM, AdaBoost) only for small datasets.
+    """
     models = {
         "Random Forest": RandomForestClassifier(
-            n_estimators=200, class_weight='balanced',
-            random_state=42, n_jobs=-1
+            n_estimators=200,
+            class_weight='balanced',  # automatically handles class imbalance
+            random_state=42,
+            n_jobs=-1                 # use all CPU cores
         ),
         "XGBoost": xgb.XGBClassifier(
-            n_estimators=200, learning_rate=0.1, max_depth=6,
-            subsample=0.8, colsample_bytree=0.8,
-            random_state=42, eval_metric='logloss', verbosity=0
+            n_estimators=200,
+            learning_rate=0.1,
+            max_depth=6,
+            subsample=0.8,            # use 80% of rows per tree
+            colsample_bytree=0.8,     # use 80% of features per tree
+            random_state=42,
+            eval_metric='logloss',
+            verbosity=0
         ),
         "LightGBM": lgb.LGBMClassifier(
-            n_estimators=200, learning_rate=0.1,
-            num_leaves=31, random_state=42, verbose=-1
+            n_estimators=200,
+            learning_rate=0.1,
+            num_leaves=31,            # controls tree complexity
+            random_state=42,
+            verbose=-1
         ),
         "Gradient Boosting": GradientBoostingClassifier(
-            n_estimators=200, learning_rate=0.1,
-            max_depth=5, random_state=42
+            n_estimators=200,
+            learning_rate=0.1,
+            max_depth=5,
+            subsample=0.8,
+            random_state=42
         ),
         "Extra Trees": ExtraTreesClassifier(
-            n_estimators=200, random_state=42, n_jobs=-1
+            n_estimators=200,
+            random_state=42,
+            n_jobs=-1
         ),
         "Logistic Regression": LogisticRegression(
-            C=1.0, max_iter=1000,
-            class_weight='balanced', random_state=42
+            C=1.0,
+            max_iter=1000,
+            class_weight='balanced',
+            random_state=42
         ),
         "KNN": KNeighborsClassifier(
-            n_neighbors=7, weights='distance'
+            n_neighbors=7,
+            weights='distance'        # closer neighbors get more weight
         ),
         "Naive Bayes": GaussianNB(),
     }
 
-    # Add slower models only for small datasets
+    # These are slow on large data — only run on small datasets
     if dataset_size < 5000:
         models["SVM (RBF)"] = SVC(
-            kernel='rbf', C=1.0, gamma='scale',
-            probability=True, random_state=42
+            kernel='rbf', C=1.0,
+            gamma='scale', probability=True,
+            random_state=42
         )
         models["AdaBoost"] = AdaBoostClassifier(
-            n_estimators=100, learning_rate=0.1, random_state=42
+            n_estimators=100,
+            learning_rate=0.1,
+            random_state=42
         )
 
     return models
 
 
 def get_regressors(dataset_size: int) -> dict:
+    """
+    Returns all regression models to try.
+    """
     models = {
         "Random Forest": RandomForestRegressor(
             n_estimators=200, random_state=42, n_jobs=-1
         ),
         "XGBoost": xgb.XGBRegressor(
-            n_estimators=200, learning_rate=0.1, max_depth=6,
-            subsample=0.8, colsample_bytree=0.8,
+            n_estimators=200, learning_rate=0.1,
+            max_depth=6, subsample=0.8,
+            colsample_bytree=0.8,
             random_state=42, verbosity=0
         ),
         "LightGBM": lgb.LGBMRegressor(
@@ -266,19 +364,23 @@ def get_regressors(dataset_size: int) -> dict:
         ),
         "Gradient Boosting": GradientBoostingRegressor(
             n_estimators=200, learning_rate=0.1,
-            max_depth=5, random_state=42
+            max_depth=5, subsample=0.8, random_state=42
         ),
         "Extra Trees": ExtraTreesRegressor(
             n_estimators=200, random_state=42, n_jobs=-1
         ),
         "Ridge": Ridge(alpha=1.0),
         "Lasso": Lasso(alpha=0.1, max_iter=2000),
-        "ElasticNet": ElasticNet(alpha=0.1, l1_ratio=0.5, max_iter=2000),
-        "KNN": KNeighborsRegressor(n_neighbors=7, weights='distance'),
+        "ElasticNet": ElasticNet(
+            alpha=0.1, l1_ratio=0.5, max_iter=2000
+        ),
+        "KNN": KNeighborsRegressor(
+            n_neighbors=7, weights='distance'
+        ),
     }
 
     if dataset_size < 5000:
-        models["SVR"] = SVR(kernel='rbf', C=1.0, gamma='scale')
+        models["SVR"]      = SVR(kernel='rbf', C=1.0, gamma='scale')
         models["AdaBoost"] = AdaBoostRegressor(
             n_estimators=100, learning_rate=0.1, random_state=42
         )
@@ -287,20 +389,26 @@ def get_regressors(dataset_size: int) -> dict:
 
 
 # ─────────────────────────────────────────────────────────
-# HYPERPARAMETER SEARCH SPACES
+# 5. HYPERPARAMETER SEARCH SPACES
 # ─────────────────────────────────────────────────────────
 
 def get_tuning_params(problem_type: str) -> dict:
-    """Hyperparameter search spaces for top models."""
+    """
+    For each model, defines the ranges of hyperparameters to try.
+    RandomizedSearchCV randomly samples from these ranges.
+
+    More options = better chance of finding optimal settings
+    = better accuracy
+    """
     if problem_type == "classification":
         return {
             "Random Forest": {
-                "n_estimators":     [100, 200, 300, 500],
-                "max_depth":        [None, 5, 10, 20, 30],
-                "min_samples_split":[2, 5, 10],
-                "min_samples_leaf": [1, 2, 4],
-                "max_features":     ['sqrt', 'log2', None],
-                "class_weight":     ['balanced', None],
+                "n_estimators":      [100, 200, 300, 500],
+                "max_depth":         [None, 5, 10, 20, 30],
+                "min_samples_split": [2, 5, 10],
+                "min_samples_leaf":  [1, 2, 4],
+                "max_features":      ['sqrt', 'log2', None],
+                "class_weight":      ['balanced', None],
             },
             "XGBoost": {
                 "n_estimators":     [100, 200, 300],
@@ -319,15 +427,29 @@ def get_tuning_params(problem_type: str) -> dict:
                 "subsample":         [0.6, 0.8, 1.0],
                 "colsample_bytree":  [0.6, 0.8, 1.0],
             },
+            "Gradient Boosting": {
+                "n_estimators":      [100, 200, 300],
+                "learning_rate":     [0.01, 0.05, 0.1, 0.2],
+                "max_depth":         [3, 4, 5, 6],
+                "subsample":         [0.6, 0.7, 0.8, 0.9],
+                "min_samples_split": [2, 5, 10],
+            },
+            "Extra Trees": {
+                "n_estimators":      [100, 200, 300],
+                "max_depth":         [None, 5, 10, 20],
+                "min_samples_split": [2, 5, 10],
+                "min_samples_leaf":  [1, 2, 4],
+                "max_features":      ['sqrt', 'log2'],
+            },
         }
     else:
         return {
             "Random Forest": {
-                "n_estimators":     [100, 200, 300, 500],
-                "max_depth":        [None, 5, 10, 20, 30],
-                "min_samples_split":[2, 5, 10],
-                "min_samples_leaf": [1, 2, 4],
-                "max_features":     ['sqrt', 'log2', None],
+                "n_estimators":      [100, 200, 300, 500],
+                "max_depth":         [None, 5, 10, 20, 30],
+                "min_samples_split": [2, 5, 10],
+                "min_samples_leaf":  [1, 2, 4],
+                "max_features":      ['sqrt', 'log2', None],
             },
             "XGBoost": {
                 "n_estimators":     [100, 200, 300],
@@ -337,16 +459,30 @@ def get_tuning_params(problem_type: str) -> dict:
                 "colsample_bytree": [0.6, 0.7, 0.8, 0.9],
             },
             "LightGBM": {
-                "n_estimators":     [100, 200, 300],
-                "learning_rate":    [0.01, 0.05, 0.1, 0.2],
-                "num_leaves":       [15, 31, 63, 127],
-                "min_child_samples":[5, 10, 20, 50],
+                "n_estimators":      [100, 200, 300],
+                "learning_rate":     [0.01, 0.05, 0.1, 0.2],
+                "num_leaves":        [15, 31, 63, 127],
+                "min_child_samples": [5, 10, 20, 50],
+            },
+            "Gradient Boosting": {
+                "n_estimators":      [100, 200, 300],
+                "learning_rate":     [0.01, 0.05, 0.1, 0.2],
+                "max_depth":         [3, 4, 5, 6],
+                "subsample":         [0.6, 0.7, 0.8, 0.9],
+                "min_samples_split": [2, 5, 10],
+            },
+            "Extra Trees": {
+                "n_estimators":      [100, 200, 300],
+                "max_depth":         [None, 5, 10, 20],
+                "min_samples_split": [2, 5, 10],
+                "min_samples_leaf":  [1, 2, 4],
+                "max_features":      ['sqrt', 'log2'],
             },
         }
 
 
 # ─────────────────────────────────────────────────────────
-# TRAINING
+# 6. TRAIN ALL MODELS
 # ─────────────────────────────────────────────────────────
 
 def train_models(
@@ -356,24 +492,34 @@ def train_models(
     dataset_size: int,
     log_callback=None
 ) -> list:
+    """
+    Train every model and evaluate on held-out test set.
+    Returns list of results sorted by best score first.
+    """
     X = df.drop(columns=[target_column])
     y = df[target_column]
 
-    # Use RobustScaler — better for outliers than StandardScaler
-    scaler = RobustScaler()
+    # RobustScaler: scales using median and IQR
+    # Better than StandardScaler for data with outliers
+    # StandardScaler uses mean which gets pulled by outliers
+    # RobustScaler uses median which is not affected by outliers
+    scaler   = RobustScaler()
     X_scaled = scaler.fit_transform(X)
 
+    # Stratify ensures both train and test have same class distribution
+    # Only possible for classification
     X_train, X_test, y_train, y_test = train_test_split(
-        X_scaled, y, test_size=0.2, random_state=42,
+        X_scaled, y,
+        test_size=0.2,
+        random_state=42,
         stratify=y if problem_type == "classification" else None
     )
 
     if log_callback:
         log_callback(f"Train: {len(X_train)} rows | Test: {len(X_test)} rows")
 
-    models = get_classifiers(dataset_size) if problem_type == "classification" \
-             else get_regressors(dataset_size)
-
+    models  = get_classifiers(dataset_size) if problem_type == "classification" \
+              else get_regressors(dataset_size)
     results = []
 
     for name, model in models.items():
@@ -427,7 +573,7 @@ def train_models(
 
 
 # ─────────────────────────────────────────────────────────
-# HYPERPARAMETER TUNING (Top 3 models)
+# 7. HYPERPARAMETER TUNING
 # ─────────────────────────────────────────────────────────
 
 def tune_top_models(
@@ -439,20 +585,30 @@ def tune_top_models(
     log_callback=None
 ) -> list:
     """
-    Tune hyperparameters for the top 3 models.
-    Uses RandomizedSearchCV — tries random combinations intelligently.
-    Auto-scales iterations based on dataset size.
+    Tune hyperparameters for the top 5 models.
+
+    RandomizedSearchCV:
+    - Takes a model and a dict of parameter ranges
+    - Randomly tries N combinations
+    - Uses cross-validation to evaluate each combination
+    - Returns the best combination found
+
+    Why random search instead of trying ALL combinations?
+    - Grid search (trying all) on 5 parameters × 4 values = 4^5 = 1024 combinations
+    - Random search tries only N=20 random combinations
+    - Research shows random search finds near-optimal in 20 tries
+    - Much faster, nearly as good
     """
     if log_callback:
-        log_callback("Starting hyperparameter tuning for top 3 models...")
+        log_callback("Starting hyperparameter tuning for top 5 models...")
 
     X = df.drop(columns=[target_column])
     y = df[target_column]
 
-    scaler = RobustScaler()
+    scaler   = RobustScaler()
     X_scaled = scaler.fit_transform(X)
 
-    # Fewer iterations for large datasets (speed)
+    # Scale iterations by dataset size (large data = fewer iterations = faster)
     if dataset_size < 1000:
         n_iter = 30
     elif dataset_size < 5000:
@@ -462,73 +618,73 @@ def tune_top_models(
     else:
         n_iter = 5
 
+    # Cross-validation strategy
+    # StratifiedKFold for classification → preserves class ratios in each fold
+    # KFold for regression → simple split
     cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=42) \
          if problem_type == "classification" \
          else KFold(n_splits=3, shuffle=True, random_state=42)
 
-    scoring = "accuracy" if problem_type == "classification" else "r2"
+    scoring       = "accuracy" if problem_type == "classification" else "r2"
     tuning_params = get_tuning_params(problem_type)
 
-    # Get top 3 model names
-    top_3 = [r["model_name"] for r in initial_results[:3]]
-    tuned_results = {r["model_name"]: r for r in initial_results}
+    # Tune top 5 models
+    top_5        = [r["model_name"] for r in initial_results[:5]]
+    tuned_lookup = {r["model_name"]: r for r in initial_results}
 
     models = get_classifiers(dataset_size) if problem_type == "classification" \
              else get_regressors(dataset_size)
 
-    for model_name in top_3:
+    for model_name in top_5:
         if model_name not in tuning_params:
             if log_callback:
-                log_callback(f"  Skipping tuning for {model_name} (no search space defined)")
+                log_callback(f"  Skipping {model_name} (no search space defined)")
             continue
 
         if log_callback:
-            log_callback(f"⟳ Tuning {model_name} ({n_iter} iterations)...")
+            log_callback(f"⟳ Tuning {model_name} ({n_iter} random iterations)...")
 
         try:
-            base_model = models[model_name]
-            param_dist = tuning_params[model_name]
-
             search = RandomizedSearchCV(
-                base_model,
-                param_distributions=param_dist,
+                models[model_name],
+                param_distributions=tuning_params[model_name],
                 n_iter=n_iter,
                 scoring=scoring,
                 cv=cv,
                 random_state=42,
-                n_jobs=-1,
-                refit=True
+                n_jobs=-1,   # parallel — use all CPU cores
+                refit=True   # refit best model on full data
             )
             search.fit(X_scaled, y)
 
-            best_score = search.best_score_
-            old_score  = tuned_results[model_name]["primary_score"]
+            best_score  = search.best_score_
+            old_score   = tuned_lookup[model_name]["primary_score"]
             improvement = best_score - old_score
 
             if best_score > old_score:
-                tuned_results[model_name]["primary_score"] = round(float(best_score), 4)
-                tuned_results[model_name]["tuned"]         = True
-                tuned_results[model_name]["best_params"]   = search.best_params_
+                tuned_lookup[model_name]["primary_score"] = round(float(best_score), 4)
+                tuned_lookup[model_name]["tuned"]         = True
+                tuned_lookup[model_name]["best_params"]   = search.best_params_
                 if log_callback:
                     log_callback(
-                        f"  ✓ {model_name} improved: {old_score:.4f} → {best_score:.4f} "
-                        f"(+{improvement:.4f})"
+                        f"  ✓ {model_name}: {old_score:.4f} → "
+                        f"{best_score:.4f} (+{improvement:.4f})"
                     )
             else:
                 if log_callback:
-                    log_callback(f"  ✓ {model_name}: original params were already optimal")
+                    log_callback(f"  ✓ {model_name}: original params already optimal")
 
         except Exception as e:
             if log_callback:
                 log_callback(f"  ✗ {model_name} tuning failed: {str(e)}")
 
-    final = list(tuned_results.values())
+    final = list(tuned_lookup.values())
     final.sort(key=lambda x: x["primary_score"], reverse=True)
     return final
 
 
 # ─────────────────────────────────────────────────────────
-# FEATURE IMPORTANCE
+# 8. FEATURE IMPORTANCE
 # ─────────────────────────────────────────────────────────
 
 def get_feature_importance(
@@ -537,11 +693,19 @@ def get_feature_importance(
     problem_type: str,
     log_callback=None
 ) -> list:
+    """
+    Calculate how important each feature is for prediction.
+    Uses Random Forest's built-in feature_importances_.
+
+    feature_importances_ = how much each feature reduces impurity
+    across all trees in the forest.
+    Higher = more important for making predictions.
+    """
     try:
         X = df.drop(columns=[target_column])
         y = df[target_column]
 
-        scaler = RobustScaler()
+        scaler   = RobustScaler()
         X_scaled = scaler.fit_transform(X)
         X_train, _, y_train, _ = train_test_split(
             X_scaled, y, test_size=0.2, random_state=42
@@ -552,6 +716,7 @@ def get_feature_importance(
                 else RandomForestRegressor(n_estimators=200, random_state=42, n_jobs=-1)
 
         model.fit(X_train, y_train)
+
         importances = model.feature_importances_
         features    = X.columns.tolist()
 
@@ -563,8 +728,7 @@ def get_feature_importance(
 
         if log_callback:
             log_callback("Feature importance calculated ✓")
-            top3 = result[:3]
-            for f in top3:
+            for f in result[:3]:
                 log_callback(f"  → {f['feature']}: {f['importance']:.4f}")
 
         return result
@@ -576,14 +740,30 @@ def get_feature_importance(
 
 
 # ─────────────────────────────────────────────────────────
-# FULL PIPELINE
+# 9. FULL PIPELINE ORCHESTRATOR
 # ─────────────────────────────────────────────────────────
 
-def run_full_pipeline(file_path: str, target_column: str, log_callback=None) -> dict:
+def run_full_pipeline(
+    file_path: str,
+    target_column: str,
+    log_callback=None
+) -> dict:
+    """
+    Runs the complete ML pipeline end to end:
+    1. Load CSV
+    2. Clean data
+    3. Detect problem type
+    4. Feature engineering
+    5. Train all models
+    6. Tune top 5 models
+    7. Calculate feature importance
+    8. Return complete results
+    """
+
     # ── Load ──────────────────────────────────────────────
     if log_callback:
         log_callback("📂 Loading dataset...")
-    df = pd.read_csv(file_path)
+    df           = pd.read_csv(file_path)
     dataset_size = len(df)
     if log_callback:
         log_callback(f"Loaded {dataset_size} rows, {len(df.columns)} columns ✓")
@@ -601,18 +781,22 @@ def run_full_pipeline(file_path: str, target_column: str, log_callback=None) -> 
     # ── Feature engineering ───────────────────────────────
     if log_callback:
         log_callback("⚙️ Stage 2: Feature engineering...")
-    df = engineer_features(df, target_column, problem_type, dataset_size, log_callback)
+    df = engineer_features(
+        df, target_column, problem_type, dataset_size, log_callback
+    )
 
     # ── Train all models ──────────────────────────────────
-    total_models = len(get_classifiers(dataset_size)) if problem_type == "classification" \
-                   else len(get_regressors(dataset_size))
+    total = len(get_classifiers(dataset_size)) if problem_type == "classification" \
+            else len(get_regressors(dataset_size))
     if log_callback:
-        log_callback(f"🧠 Stage 3: Training {total_models} models...")
-    model_results = train_models(df, target_column, problem_type, dataset_size, log_callback)
+        log_callback(f"🧠 Stage 3: Training {total} models...")
+    model_results = train_models(
+        df, target_column, problem_type, dataset_size, log_callback
+    )
 
     # ── Hyperparameter tuning ─────────────────────────────
     if log_callback:
-        log_callback("🔬 Stage 4: Hyperparameter tuning (top 3 models)...")
+        log_callback("🔬 Stage 4: Hyperparameter tuning (top 5 models)...")
     model_results = tune_top_models(
         df, target_column, problem_type,
         model_results, dataset_size, log_callback
@@ -621,12 +805,17 @@ def run_full_pipeline(file_path: str, target_column: str, log_callback=None) -> 
     # ── Feature importance ────────────────────────────────
     if log_callback:
         log_callback("📊 Stage 5: Calculating feature importance...")
-    feature_importance = get_feature_importance(df, target_column, problem_type, log_callback)
+    feature_importance = get_feature_importance(
+        df, target_column, problem_type, log_callback
+    )
 
-    # ── Final result ──────────────────────────────────────
+    # ── Package results ───────────────────────────────────
     best = model_results[0]
     if log_callback:
-        log_callback(f"🏆 Best model: {best['model_name']} — {best['primary_score']:.4f}")
+        log_callback(
+            f"🏆 Best model: {best['model_name']} — "
+            f"{best['primary_score']:.4f}"
+        )
         log_callback("🎉 Pipeline complete!")
 
     return {
