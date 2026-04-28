@@ -11,22 +11,22 @@ interface ParsedCSV {
 }
 
 export default function Upload() {
-  const navigate = useNavigate()
+  const navigate    = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const [file, setFile] = useState<File | null>(null)
-  const [parsed, setParsed] = useState<ParsedCSV | null>(null)
-  const [targetColumn, setTargetColumn] = useState('')
-  const [dragging, setDragging] = useState(false)
-  const [error, setError] = useState('')
+  const [file, setFile]           = useState<File | null>(null)
+  const [parsed, setParsed]       = useState<ParsedCSV | null>(null)
+  const [targetColumn, setTarget] = useState('')
+  const [dragging, setDragging]   = useState(false)
+  const [error, setError]         = useState('')
   const [uploading, setUploading] = useState(false)
 
-  // ─── Parse CSV in browser (for preview) ───────────────
+  // ── Parse CSV in browser for preview ──────────────────
   function parseFile(f: File) {
     setError('')
     setFile(null)
     setParsed(null)
-    setTargetColumn('')
+    setTarget('')
 
     if (!f.name.endsWith('.csv')) {
       setError('Only CSV files are allowed')
@@ -44,32 +44,30 @@ export default function Upload() {
         const headers = allRows[0]
         const dataRows = allRows.slice(1).filter(r => r.some(c => c !== ''))
 
-        if (headers.length === 0) {
+        if (!headers || headers.length === 0) {
           setError('CSV appears to be empty')
           return
         }
 
         setParsed({
           headers,
-          rows: dataRows.slice(0, 5),  // preview first 5 rows only
+          rows:      dataRows.slice(0, 5),
           totalRows: dataRows.length,
         })
         setFile(f)
-        setTargetColumn(headers[headers.length - 1]) // default: last column
+        setTarget(headers[headers.length - 1])
       },
       error: () => setError('Failed to parse CSV file'),
     })
   }
 
-  // ─── Drag and drop handlers ────────────────────────────
+  // ── Drag and drop ──────────────────────────────────────
   const onDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setDragging(true)
   }, [])
 
-  const onDragLeave = useCallback(() => {
-    setDragging(false)
-  }, [])
+  const onDragLeave = useCallback(() => setDragging(false), [])
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -83,7 +81,7 @@ export default function Upload() {
     if (selected) parseFile(selected)
   }
 
-  // ─── Upload to backend ─────────────────────────────────
+  // ── Upload to backend ──────────────────────────────────
   async function handleUpload() {
     if (!file || !targetColumn) return
     setUploading(true)
@@ -98,8 +96,8 @@ export default function Upload() {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
 
-      // Go to training page with the new dataset id
-      navigate(`/jobs/${response.data.id}`)
+      // Navigate to live training screen
+      navigate(`/jobs/${response.data.job_id}`)
 
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Upload failed')
@@ -108,7 +106,6 @@ export default function Upload() {
     }
   }
 
-  // ─── Helpers ───────────────────────────────────────────
   function formatSize(bytes: number) {
     if (bytes < 1024) return `${bytes} B`
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
@@ -125,7 +122,7 @@ export default function Upload() {
             Upload Dataset
           </h1>
           <p style={{ color: '#6B7280' }} className="text-sm">
-            Upload a CSV file and our AI agents will train the best model automatically.
+            Upload a CSV and our AI agents will train the best model automatically.
           </p>
         </div>
 
@@ -139,8 +136,9 @@ export default function Upload() {
             backgroundColor: dragging ? 'rgba(99,102,241,0.08)' : '#111827',
             border: `2px dashed ${dragging ? '#6366F1' : file ? '#22C55E' : '#374151'}`,
             transition: 'all 0.2s ease',
+            cursor: 'pointer',
           }}
-          className="rounded-2xl p-12 text-center cursor-pointer mb-6 hover:border-indigo-500"
+          className="rounded-2xl p-12 text-center mb-6"
         >
           <input
             ref={fileInputRef}
@@ -151,12 +149,15 @@ export default function Upload() {
           />
 
           {file ? (
-            // File selected state
             <div>
               <div style={{
-                background: 'linear-gradient(135deg, rgba(34,197,94,0.15), rgba(34,197,94,0.05))',
+                background: 'rgba(34,197,94,0.1)',
                 border: '1px solid rgba(34,197,94,0.3)',
-              }} className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-4">
+                width: '56px', height: '56px', borderRadius: '16px',
+                display: 'flex', alignItems: 'center',
+                justifyContent: 'center', fontSize: '24px',
+                margin: '0 auto 16px',
+              }}>
                 ✅
               </div>
               <p style={{ color: '#E5E7EB' }} className="font-semibold text-lg mb-1">
@@ -170,12 +171,15 @@ export default function Upload() {
               </p>
             </div>
           ) : (
-            // Empty state
             <div>
               <div style={{
                 background: 'linear-gradient(135deg, rgba(59,130,246,0.15), rgba(99,102,241,0.15))',
                 border: '1px solid rgba(99,102,241,0.2)',
-              }} className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-4">
+                width: '56px', height: '56px', borderRadius: '16px',
+                display: 'flex', alignItems: 'center',
+                justifyContent: 'center', fontSize: '24px',
+                margin: '0 auto 16px',
+              }}>
                 📂
               </div>
               <p style={{ color: '#E5E7EB' }} className="font-semibold text-lg mb-1">
@@ -188,7 +192,10 @@ export default function Upload() {
                 backgroundColor: 'rgba(99,102,241,0.1)',
                 border: '1px solid rgba(99,102,241,0.2)',
                 color: '#A5B4FC',
-              }} className="text-xs px-3 py-1.5 rounded-full">
+                fontSize: '12px',
+                padding: '4px 12px',
+                borderRadius: '20px',
+              }}>
                 CSV up to 50MB
               </span>
             </div>
@@ -206,11 +213,11 @@ export default function Upload() {
           </div>
         )}
 
-        {/* Preview + target column */}
+        {/* Preview + target selector */}
         {parsed && (
           <div className="space-y-6 animate-fade-in">
 
-            {/* CSV Preview Table */}
+            {/* Preview table */}
             <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
               className="rounded-xl overflow-hidden">
               <div style={{ borderBottom: '1px solid #1F2937' }}
@@ -233,8 +240,12 @@ export default function Upload() {
                           style={{
                             color: h === targetColumn ? '#A5B4FC' : '#6B7280',
                             borderRight: '1px solid #1F2937',
+                            padding: '10px 16px',
+                            textAlign: 'left',
+                            fontSize: '11px',
+                            fontFamily: 'JetBrains Mono, monospace',
+                            whiteSpace: 'nowrap',
                           }}
-                          className="px-4 py-2.5 text-left text-xs font-medium font-mono whitespace-nowrap"
                         >
                           {h}
                           {h === targetColumn && (
@@ -242,7 +253,11 @@ export default function Upload() {
                               backgroundColor: 'rgba(99,102,241,0.2)',
                               color: '#A5B4FC',
                               border: '1px solid rgba(99,102,241,0.3)',
-                            }} className="ml-2 text-xs px-1.5 py-0.5 rounded-full">
+                              fontSize: '10px',
+                              padding: '1px 6px',
+                              borderRadius: '20px',
+                              marginLeft: '8px',
+                            }}>
                               target
                             </span>
                           )}
@@ -254,8 +269,9 @@ export default function Upload() {
                     {parsed.rows.map((row, i) => (
                       <tr
                         key={i}
-                        style={{ borderBottom: i < parsed.rows.length - 1 ? '1px solid #1F2937' : 'none' }}
-                        className="hover:bg-white/[0.02] transition-all"
+                        style={{
+                          borderBottom: i < parsed.rows.length - 1 ? '1px solid #1F2937' : 'none',
+                        }}
                       >
                         {row.map((cell, j) => (
                           <td
@@ -263,8 +279,11 @@ export default function Upload() {
                             style={{
                               color: parsed.headers[j] === targetColumn ? '#C7D2FE' : '#9CA3AF',
                               borderRight: '1px solid #1F2937',
+                              padding: '10px 16px',
+                              fontFamily: 'JetBrains Mono, monospace',
+                              fontSize: '11px',
+                              whiteSpace: 'nowrap',
                             }}
-                            className="px-4 py-2.5 font-mono text-xs whitespace-nowrap"
                           >
                             {cell}
                           </td>
@@ -276,7 +295,7 @@ export default function Upload() {
               </div>
             </div>
 
-            {/* Target Column Selector */}
+            {/* Target column selector */}
             <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
               className="rounded-xl p-5">
               <h2 style={{ color: '#E5E7EB' }} className="text-sm font-semibold mb-1">
@@ -285,12 +304,11 @@ export default function Upload() {
               <p style={{ color: '#6B7280' }} className="text-xs mb-4">
                 Which column do you want the model to predict?
               </p>
-
               <div className="flex flex-wrap gap-2">
                 {parsed.headers.map((col) => (
                   <button
                     key={col}
-                    onClick={() => setTargetColumn(col)}
+                    onClick={() => setTarget(col)}
                     style={targetColumn === col ? {
                       background: 'linear-gradient(135deg, rgba(59,130,246,0.2), rgba(99,102,241,0.2))',
                       border: '1px solid rgba(99,102,241,0.5)',
@@ -318,7 +336,7 @@ export default function Upload() {
               {uploading ? (
                 <span className="flex items-center justify-center gap-2">
                   <span className="animate-spin">⟳</span>
-                  Uploading and starting training...
+                  Uploading and queuing training job...
                 </span>
               ) : (
                 '🚀 Upload and Start Training'

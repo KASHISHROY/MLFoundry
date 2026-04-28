@@ -29,3 +29,10 @@ class JobResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class UploadResponse(BaseModel):
+    dataset: DatasetResponse
+    job_id: int
+
+    class Config:
+        from_attributes = True
