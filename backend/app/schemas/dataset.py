@@ -36,3 +36,4 @@ class UploadResponse(BaseModel):
 
     class Config:
         from_attributes = True
+

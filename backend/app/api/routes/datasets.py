@@ -165,3 +165,25 @@ def delete_dataset(
     delete_file(dataset.file_path)
     db.delete(dataset)
     db.commit()
+
+@router.get("/jobs/{job_id}/results")
+def get_job_results(
+    job_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get full training results for a completed job."""
+    job = db.query(Job)\
+        .filter(Job.id == job_id, Job.user_id == current_user.id)\
+        .first()
+
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if job.status != "completed":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Job is not completed yet. Current status: {job.status}"
+        )
+
+    return job.result
