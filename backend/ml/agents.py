@@ -633,6 +633,9 @@ def explainer_agent(state: AgentState) -> AgentState:
     _log(state, "🤖 ExplainerAgent starting...")
 
     try:
+        import pickle
+        import os
+
         df           = state["engineered_df"].copy()
         target       = state["target_column"]
         problem_type = state["problem_type"]
@@ -641,6 +644,7 @@ def explainer_agent(state: AgentState) -> AgentState:
 
         X = df.drop(columns=[target])
         y = df[target]
+        features = X.columns.tolist()
 
         scaler   = RobustScaler()
         X_scaled = scaler.fit_transform(X)
@@ -648,17 +652,56 @@ def explainer_agent(state: AgentState) -> AgentState:
             X_scaled, y, test_size=0.2, random_state=42
         )
 
-        features = X.columns.tolist()
-
-        # ── Train Random Forest for feature importance ─────
-        rf = RandomForestClassifier(
-            n_estimators=200, random_state=42, n_jobs=-1
-        ) if problem_type == "classification" else RandomForestRegressor(
-            n_estimators=200, random_state=42, n_jobs=-1
+        # ── Train best model on FULL data ─────────────────
+        # We retrain using ALL data (not just 80%) for deployment
+        # This gives the strongest possible model for production
+        best_model_obj = _get_models(problem_type, state["dataset_size"]).get(
+            best["model_name"]
         )
+
+        if best_model_obj is not None:
+            _log(state, f"Training final {best['model_name']} on full dataset...")
+            best_model_obj.fit(X_scaled, y)
+            _log(state, "Final model trained on 100% of data ✓")
+        else:
+            # Fallback to Random Forest
+            best_model_obj = RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1) \
+                             if problem_type == "classification" \
+                             else RandomForestRegressor(n_estimators=200, random_state=42, n_jobs=-1)
+            best_model_obj.fit(X_scaled, y)
+
+        # ── Save model + scaler + features to disk ─────────
+        # We save THREE things together:
+        # 1. The trained model (makes predictions)
+        # 2. The scaler (transforms new data the same way)
+        # 3. Feature names (validates incoming prediction requests)
+        model_dir  = "/app/models"
+        os.makedirs(model_dir, exist_ok=True)
+
+        import uuid
+        model_id   = str(uuid.uuid4())
+        model_path = os.path.join(model_dir, f"{model_id}.pkl")
+
+        model_package = {
+            "model":        best_model_obj,
+            "scaler":       scaler,
+            "features":     features,
+            "target":       target,
+            "problem_type": problem_type,
+            "model_name":   best["model_name"],
+        }
+
+        with open(model_path, "wb") as f:
+            pickle.dump(model_package, f)
+
+        _log(state, f"Model saved to disk ✓ ({model_id[:8]}...)")
+
+        # ── Feature importance ─────────────────────────────
+        rf = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1) \
+             if problem_type == "classification" \
+             else RandomForestRegressor(n_estimators=100, random_state=42, n_jobs=-1)
         rf.fit(X_train, y_train)
 
-        # ── Feature importance (global) ────────────────────
         importances = rf.feature_importances_
         feature_importance = sorted([
             {"feature": f, "importance": round(float(imp), 4)}
@@ -669,50 +712,36 @@ def explainer_agent(state: AgentState) -> AgentState:
         for f in feature_importance[:3]:
             _log(state, f"  → {f['feature']}: {f['importance']:.4f}")
 
-        # ── SHAP values (per-prediction explanation) ───────
+        # ── SHAP global summary ────────────────────────────
         shap_summary = []
         try:
             import shap
-
             _log(state, "Calculating SHAP values...")
+            explainer    = shap.TreeExplainer(rf)
+            X_shap       = X_test[:200]
+            shap_values  = explainer.shap_values(X_shap)
 
-            # Use TreeExplainer for tree-based models (fast)
-            explainer = shap.TreeExplainer(rf)
-
-            # Calculate SHAP for test set (max 200 samples for speed)
-            X_shap = X_test[:200]
-            shap_values = explainer.shap_values(X_shap)
-
-            # For classification, shap_values is a list (one per class)
-            # We want the positive class (index 1)
             if problem_type == "classification" and isinstance(shap_values, list):
-                sv = shap_values[1]  # positive class
+                sv = shap_values[1]
             else:
                 sv = shap_values
 
-            # Mean absolute SHAP value per feature = global importance
             mean_shap = np.abs(sv).mean(axis=0)
-
             shap_summary = sorted([
                 {
-                    "feature":        features[i],
-                    "mean_shap":      round(float(mean_shap[i]), 4),
-                    # Store first 10 individual values for waterfall chart
-                    "sample_values":  [round(float(sv[j][i]), 4) for j in range(min(10, len(sv)))]
+                    "feature":       features[i],
+                    "mean_shap":     round(float(mean_shap[i]), 4),
+                    "sample_values": [round(float(sv[j][i]), 4) for j in range(min(10, len(sv)))]
                 }
                 for i in range(len(features))
             ], key=lambda x: abs(x["mean_shap"]), reverse=True)
 
-            _log(state, f"SHAP values calculated ✓ ({len(X_shap)} samples)")
-            for s in shap_summary[:3]:
-                _log(state, f"  → SHAP {s['feature']}: {s['mean_shap']:.4f}")
+            _log(state, f"SHAP calculated ✓ ({len(X_shap)} samples)")
 
         except Exception as e:
-            _log(state, f"SHAP calculation skipped: {str(e)}")
-            shap_summary = []
+            _log(state, f"SHAP skipped: {str(e)}")
 
         state["feature_importance"] = feature_importance
-
         state["final_result"] = {
             "problem_type":       problem_type,
             "best_model":         best["model_name"],
@@ -723,6 +752,8 @@ def explainer_agent(state: AgentState) -> AgentState:
             "dataset_size":       state["dataset_size"],
             "cleaning_report":    state.get("cleaning_report", {}),
             "engineering_report": state.get("engineering_report", {}),
+            "model_path":         model_path,     # ← NEW: saved model location
+            "features":           features,       # ← NEW: feature names for deployment
         }
 
         _log(state, "✓ ExplainerAgent complete")

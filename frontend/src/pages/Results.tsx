@@ -501,9 +501,12 @@ export default function Results() {
         SHAP Explainability
       </h3>
       <p style={{ color: '#4B5563' }} className="text-xs">
-        How much each feature pushes predictions up or down on average.
-        Unlike feature importance, SHAP shows direction — positive means
-        this feature increases the prediction, negative means it decreases it.
+        <p style={{ color: '#4B5563' }} className="text-xs leading-relaxed">
+  Feature importance above tells you WHAT matters. SHAP tells you HOW — 
+  does this feature push predictions up (purple) or down (red)?
+  A feature can be important but push in unexpected directions.
+  Per-prediction SHAP (explaining individual cases) comes with model deployment.
+</p>
       </p>
     </div>
 
@@ -697,11 +700,12 @@ export default function Results() {
         {/* Action buttons */}
         <div className="flex gap-4 flex-wrap">
           <button
-            style={{ background: 'linear-gradient(135deg, #3B82F6, #6366F1)' }}
-            className="text-white font-semibold px-6 py-3 rounded-xl text-sm glow-hover transition-all"
-          >
-            🚀 Deploy as API
-          </button>
+  onClick={() => navigate(`/deploy/${jobId}`)}
+  style={{ background: 'linear-gradient(135deg, #3B82F6, #6366F1)' }}
+  className="text-white font-semibold px-6 py-3 rounded-xl text-sm glow-hover transition-all"
+>
+  🚀 Deploy as API
+</button>
           <button
             onClick={() => navigate(`/jobs/${jobId}`)}
             style={{ backgroundColor: '#111827', border: '1px solid #1F2937', color: '#9CA3AF' }}

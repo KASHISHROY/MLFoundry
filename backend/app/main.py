@@ -1,10 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.routes import auth, datasets
+from app.api.routes import auth, datasets, deployment
 from app.core.database import engine, Base
-
-# Import all models so SQLAlchemy creates their tables
-from app.models import user, dataset, job
+from app.models import user, dataset, job, deployed_model
 
 Base.metadata.create_all(bind=engine)
 
@@ -24,6 +22,7 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(datasets.router)
+app.include_router(deployment.router)
 
 @app.get("/")
 def health_check():
