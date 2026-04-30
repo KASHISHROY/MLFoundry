@@ -644,21 +644,22 @@ def explainer_agent(state: AgentState) -> AgentState:
 
         scaler   = RobustScaler()
         X_scaled = scaler.fit_transform(X)
-        X_train, _, y_train, _ = train_test_split(
+        X_train, X_test, y_train, y_test = train_test_split(
             X_scaled, y, test_size=0.2, random_state=42
         )
 
-        # Train Random Forest for feature importance
+        features = X.columns.tolist()
+
+        # ── Train Random Forest for feature importance ─────
         rf = RandomForestClassifier(
             n_estimators=200, random_state=42, n_jobs=-1
         ) if problem_type == "classification" else RandomForestRegressor(
             n_estimators=200, random_state=42, n_jobs=-1
         )
-
         rf.fit(X_train, y_train)
-        importances = rf.feature_importances_
-        features    = X.columns.tolist()
 
+        # ── Feature importance (global) ────────────────────
+        importances = rf.feature_importances_
         feature_importance = sorted([
             {"feature": f, "importance": round(float(imp), 4)}
             for f, imp in zip(features, importances)
@@ -668,20 +669,64 @@ def explainer_agent(state: AgentState) -> AgentState:
         for f in feature_importance[:3]:
             _log(state, f"  → {f['feature']}: {f['importance']:.4f}")
 
+        # ── SHAP values (per-prediction explanation) ───────
+        shap_summary = []
+        try:
+            import shap
+
+            _log(state, "Calculating SHAP values...")
+
+            # Use TreeExplainer for tree-based models (fast)
+            explainer = shap.TreeExplainer(rf)
+
+            # Calculate SHAP for test set (max 200 samples for speed)
+            X_shap = X_test[:200]
+            shap_values = explainer.shap_values(X_shap)
+
+            # For classification, shap_values is a list (one per class)
+            # We want the positive class (index 1)
+            if problem_type == "classification" and isinstance(shap_values, list):
+                sv = shap_values[1]  # positive class
+            else:
+                sv = shap_values
+
+            # Mean absolute SHAP value per feature = global importance
+            mean_shap = np.abs(sv).mean(axis=0)
+
+            shap_summary = sorted([
+                {
+                    "feature":        features[i],
+                    "mean_shap":      round(float(mean_shap[i]), 4),
+                    # Store first 10 individual values for waterfall chart
+                    "sample_values":  [round(float(sv[j][i]), 4) for j in range(min(10, len(sv)))]
+                }
+                for i in range(len(features))
+            ], key=lambda x: abs(x["mean_shap"]), reverse=True)
+
+            _log(state, f"SHAP values calculated ✓ ({len(X_shap)} samples)")
+            for s in shap_summary[:3]:
+                _log(state, f"  → SHAP {s['feature']}: {s['mean_shap']:.4f}")
+
+        except Exception as e:
+            _log(state, f"SHAP calculation skipped: {str(e)}")
+            shap_summary = []
+
         state["feature_importance"] = feature_importance
+
         state["final_result"] = {
             "problem_type":       problem_type,
             "best_model":         best["model_name"],
             "best_metrics":       best["metrics"],
             "all_models":         results,
             "feature_importance": feature_importance,
+            "shap_summary":       shap_summary,
             "dataset_size":       state["dataset_size"],
             "cleaning_report":    state.get("cleaning_report", {}),
             "engineering_report": state.get("engineering_report", {}),
         }
 
-        _log(state, f"✓ ExplainerAgent complete")
-        _log(state, f"🏆 Best model: {best['model_name']} — {best['primary_score']:.4f}")
+        _log(state, "✓ ExplainerAgent complete")
+        _log(state, f"🏆 Best: {best['model_name']} — {best['primary_score']:.4f}")
         _log(state, "🎉 All agents finished!")
 
     except Exception as e:

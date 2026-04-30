@@ -26,6 +26,12 @@ interface FeatureImportance {
   importance: number
 }
 
+interface ShapSummary {
+  feature:       string
+  mean_shap:     number
+  sample_values: number[]
+}
+
 interface Results {
   problem_type:       string
   best_model:         string
@@ -35,6 +41,8 @@ interface Results {
   dataset_size:       number
   cleaning_report?:   Record<string, any>
   engineering_report?: Record<string, any>
+  shap_summary: ShapSummary[]
+
 }
 
 // ── Helper: rate a metric value ─────────────────────────
@@ -484,6 +492,127 @@ export default function Results() {
             </div>
           </div>
         </div>
+        {/* SHAP Section */}
+{results.shap_summary && results.shap_summary.length > 0 && (
+  <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+    className="rounded-xl overflow-hidden mb-8">
+    <div style={{ borderBottom: '1px solid #1F2937' }} className="px-5 py-4">
+      <h3 style={{ color: '#E5E7EB' }} className="text-sm font-semibold mb-0.5">
+        SHAP Explainability
+      </h3>
+      <p style={{ color: '#4B5563' }} className="text-xs">
+        How much each feature pushes predictions up or down on average.
+        Unlike feature importance, SHAP shows direction — positive means
+        this feature increases the prediction, negative means it decreases it.
+      </p>
+    </div>
+
+    <div className="p-5">
+      <div className="space-y-4">
+        {results.shap_summary.slice(0, 8).map((s, i) => {
+          const isPositive = s.mean_shap >= 0
+          const absVal     = Math.abs(s.mean_shap)
+          const maxShap    = Math.abs(results.shap_summary[0].mean_shap)
+          const barWidth   = `${(absVal / maxShap) * 100}%`
+
+          return (
+            <div key={i}>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2">
+                  <span style={{
+                    color: isPositive ? '#6366F1' : '#EF4444',
+                    fontSize: '10px',
+                    fontWeight: '700',
+                    width: '12px',
+                  }}>
+                    {isPositive ? '+' : '−'}
+                  </span>
+                  <span style={{ color: '#9CA3AF' }} className="text-xs font-mono">
+                    {s.feature}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span style={{
+                    color: isPositive ? '#A5B4FC' : '#FCA5A5',
+                    fontSize: '11px',
+                    fontFamily: 'JetBrains Mono, monospace',
+                  }}>
+                    {isPositive ? '+' : ''}{s.mean_shap.toFixed(4)}
+                  </span>
+                  <span style={{
+                    backgroundColor: isPositive
+                      ? 'rgba(99,102,241,0.1)'
+                      : 'rgba(239,68,68,0.1)',
+                    color: isPositive ? '#A5B4FC' : '#FCA5A5',
+                    border: `1px solid ${isPositive ? 'rgba(99,102,241,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                    fontSize: '9px',
+                    padding: '1px 6px',
+                    borderRadius: '20px',
+                  }}>
+                    {isPositive ? '↑ increases' : '↓ decreases'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Bar */}
+              <div className="flex items-center gap-2">
+                <div style={{ width: '50%', display: 'flex', justifyContent: 'flex-end' }}>
+                  {!isPositive && (
+                    <div style={{
+                      height: '6px',
+                      width: barWidth,
+                      background: 'linear-gradient(135deg, #EF4444, #DC2626)',
+                      borderRadius: '3px 0 0 3px',
+                    }} />
+                  )}
+                </div>
+                <div style={{
+                  width: '1px', height: '12px',
+                  backgroundColor: '#374151',
+                }} />
+                <div style={{ width: '50%' }}>
+                  {isPositive && (
+                    <div style={{
+                      height: '6px',
+                      width: barWidth,
+                      background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
+                      borderRadius: '0 3px 3px 0',
+                    }} />
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center gap-6 mt-5 pt-4"
+        style={{ borderTop: '1px solid #1F2937' }}>
+        <div className="flex items-center gap-2">
+          <div style={{
+            width: '24px', height: '6px',
+            background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
+            borderRadius: '3px',
+          }} />
+          <span style={{ color: '#6B7280' }} className="text-xs">
+            Pushes prediction higher
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div style={{
+            width: '24px', height: '6px',
+            background: 'linear-gradient(135deg, #EF4444, #DC2626)',
+            borderRadius: '3px',
+          }} />
+          <span style={{ color: '#6B7280' }} className="text-xs">
+            Pushes prediction lower
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
         {/* Plain English Explanation */}
         <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
