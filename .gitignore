@@ -49,8 +49,9 @@ desktop.ini
 *.h5
 *.pt
 *.pth
-models/
 uploads/
+backend/ml/models/
+**/app/models/*.pkl
 
 # Logs
 *.log
