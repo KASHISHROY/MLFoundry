@@ -1,5 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useEffect, useState } from 'react'
+import api from '../services/api'
 
 const navItems = [
   { label: 'Dashboard',      path: '/dashboard',  icon: '▦' },
@@ -9,20 +11,41 @@ const navItems = [
 ]
 
 const bottomItems = [
-  { label: 'APIs',           path: '/apis',        icon: '⚡' },
-  { label: 'Marketplace',    path: '/marketplace', icon: '◎' },
-  { label: 'Settings',       path: '/settings',    icon: '◌' },
+  { label: 'APIs',        path: '/apis',        icon: '⚡' },
+  { label: 'Marketplace', path: '/marketplace', icon: '◎' },
+  { label: 'Settings',    path: '/settings',    icon: '◌' },
 ]
+
+interface PlanInfo {
+  is_pro:      boolean
+  job_count:   number
+  model_limit: number | null
+  can_train:   boolean
+}
 
 export default function Sidebar() {
   const location = useLocation()
   const { logout } = useAuth()
-  const navigate = useNavigate()
+  const navigate   = useNavigate()
+  const [planInfo, setPlanInfo] = useState<PlanInfo | null>(null)
+
+  useEffect(() => {
+    api.get('/payments/plan')
+      .then(r => setPlanInfo(r.data))
+      .catch(() => {})
+  }, [])
 
   function handleLogout() {
     logout()
     navigate('/login')
   }
+
+  const usedModels  = planInfo?.job_count ?? 0
+  const modelLimit  = planInfo?.model_limit ?? 3
+  const isPro       = planInfo?.is_pro ?? false
+  const usagePct    = isPro ? 0 : Math.min((usedModels / modelLimit) * 100, 100)
+  const nearLimit   = !isPro && usedModels >= modelLimit - 1
+  const atLimit     = !isPro && usedModels >= modelLimit
 
   return (
     <aside style={{ backgroundColor: '#0D1117', borderRight: '1px solid #1F2937', width: '220px' }}
@@ -36,10 +59,17 @@ export default function Sidebar() {
             <span className="text-white font-bold text-xs">M</span>
           </div>
           <span style={{ color: '#E5E7EB' }} className="font-semibold text-sm">MLFoundry</span>
+          {isPro && (
+            <span style={{
+              background: 'linear-gradient(135deg, #3B82F6, #6366F1)',
+              color: 'white', fontSize: '8px', fontWeight: '700',
+              padding: '2px 6px', borderRadius: '20px',
+            }}>PRO</span>
+          )}
         </div>
       </div>
 
-      {/* Nav items */}
+      {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5">
         <p style={{ color: '#4B5563' }}
           className="text-xs font-medium px-2 mb-2 uppercase tracking-widest">
@@ -97,23 +127,68 @@ export default function Sidebar() {
         </div>
       </nav>
 
-      {/* Bottom */}
+      {/* Bottom section */}
       <div style={{ borderTop: '1px solid #1F2937' }} className="px-3 py-4 space-y-2">
+
         {/* Plan meter */}
-        <div style={{ backgroundColor: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)' }}
-          className="px-3 py-3 rounded-lg">
-          <div className="flex items-center justify-between mb-2">
-            <span style={{ color: '#A5B4FC' }} className="text-xs font-medium">Free plan</span>
-            <span style={{ color: '#6B7280' }} className="text-xs font-mono">2 / 3</span>
+        {!isPro ? (
+          <div style={{
+            backgroundColor: atLimit ? 'rgba(239,68,68,0.08)' : 'rgba(99,102,241,0.08)',
+            border: `1px solid ${atLimit ? 'rgba(239,68,68,0.2)' : 'rgba(99,102,241,0.2)'}`,
+          }} className="px-3 py-3 rounded-lg">
+            <div className="flex items-center justify-between mb-2">
+              <span style={{ color: atLimit ? '#FCA5A5' : '#A5B4FC' }}
+                className="text-xs font-medium">
+                Free plan
+              </span>
+              <span style={{ color: '#6B7280' }} className="text-xs font-mono">
+                {usedModels} / {modelLimit}
+              </span>
+            </div>
+            <div style={{ backgroundColor: '#1F2937' }} className="w-full rounded-full h-1">
+              <div style={{
+                background: atLimit
+                  ? '#EF4444'
+                  : nearLimit
+                  ? '#F59E0B'
+                  : 'linear-gradient(135deg, #3B82F6, #6366F1)',
+                width: `${usagePct}%`,
+              }} className="h-1 rounded-full" />
+            </div>
+            <p style={{ color: '#4B5563' }} className="text-xs mt-2">models used</p>
+
+            {/* Upgrade link */}
+            <Link
+              to="/upgrade"
+              style={{
+                display: 'block',
+                marginTop: '8px',
+                textAlign: 'center',
+                background: 'linear-gradient(135deg, #3B82F6, #6366F1)',
+                color: 'white',
+                fontSize: '11px',
+                fontWeight: '600',
+                padding: '5px 0',
+                borderRadius: '6px',
+              }}
+            >
+              {atLimit ? '⚠️ Limit reached — Upgrade' : '⚡ Upgrade to Pro'}
+            </Link>
           </div>
-          <div style={{ backgroundColor: '#1F2937' }} className="w-full rounded-full h-1">
-            <div
-              style={{ background: 'linear-gradient(135deg, #3B82F6, #6366F1)', width: '66%' }}
-              className="h-1 rounded-full"
-            />
+        ) : (
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(59,130,246,0.1), rgba(99,102,241,0.1))',
+            border: '1px solid rgba(99,102,241,0.2)',
+          }} className="px-3 py-2.5 rounded-lg">
+            <div className="flex items-center gap-2">
+              <span style={{ fontSize: '14px' }}>✨</span>
+              <div>
+                <p style={{ color: '#A5B4FC' }} className="text-xs font-semibold">Pro Plan</p>
+                <p style={{ color: '#4B5563' }} className="text-xs">Unlimited models</p>
+              </div>
+            </div>
           </div>
-          <p style={{ color: '#4B5563' }} className="text-xs mt-2">models used</p>
-        </div>
+        )}
 
         {/* Logout */}
         <button

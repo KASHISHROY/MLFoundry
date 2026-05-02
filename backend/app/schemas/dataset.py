@@ -31,9 +31,8 @@ class JobResponse(BaseModel):
         from_attributes = True
 
 class UploadResponse(BaseModel):
+    job_id:  int
     dataset: DatasetResponse
-    job_id: int
 
     class Config:
         from_attributes = True
-

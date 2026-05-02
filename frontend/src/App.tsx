@@ -8,6 +8,7 @@ import Upload from './pages/Upload'
 import Training from './pages/Training'
 import Results from './pages/Results'
 import Deploy from './pages/Deploy'
+import Upgrade from './pages/Upgrade'
 
 export default function App() {
   return (
@@ -31,6 +32,9 @@ export default function App() {
           } />
           <Route path="/deploy/:jobId" element={
             <ProtectedRoute><Deploy /></ProtectedRoute>
+          } />
+          <Route path="/upgrade" element={
+            <ProtectedRoute><Upgrade /></ProtectedRoute>
           } />
 
           <Route path="*" element={<Navigate to="/login" replace />} />

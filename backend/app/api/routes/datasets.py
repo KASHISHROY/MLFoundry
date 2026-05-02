@@ -26,6 +26,7 @@ async def upload_dataset(
     """
     Upload a CSV dataset.
     - Validates file type and size
+    - Checks plan limits
     - Reads metadata (rows, columns)
     - Saves to disk
     - Creates dataset + job records
@@ -36,8 +37,24 @@ async def upload_dataset(
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="Only CSV files are allowed")
 
+    # ── CHECK PLAN LIMITS ──────────────────────────────────
+    if not current_user.is_pro:
+        from app.core.config import settings
+        completed_jobs = db.query(Job).filter(
+            Job.user_id == current_user.id,
+            Job.status  == "completed"
+        ).count()
+
+        if completed_jobs >= settings.FREE_PLAN_MODEL_LIMIT:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Free plan limit reached ({settings.FREE_PLAN_MODEL_LIMIT} models). "
+                       f"Upgrade to Pro for unlimited models."
+            )
+    # ── END PLAN CHECK ─────────────────────────────────────
+
     # Read content
-    content = await file.read()
+    content   = await file.read()
     file_size = len(content)
 
     # Validate size (max 50MB)
@@ -46,14 +63,14 @@ async def upload_dataset(
 
     # Parse CSV to get metadata
     try:
-        df = pd.read_csv(io.BytesIO(content))
+        df           = pd.read_csv(io.BytesIO(content))
         row_count    = len(df)
         column_count = len(df.columns)
         columns      = df.columns.tolist()
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid CSV file")
 
-    # Validate target column
+    # Validate target column exists in CSV
     if target_column not in columns:
         raise HTTPException(
             status_code=400,
@@ -63,9 +80,9 @@ async def upload_dataset(
     # Save file to disk with unique name
     await file.seek(0)
     unique_filename = f"{uuid.uuid4()}_{file.filename}"
-    file_path = save_file(file, unique_filename)
+    file_path       = save_file(file, unique_filename)
 
-    # Create dataset record
+    # Create dataset record in PostgreSQL
     dataset = Dataset(
         user_id       = current_user.id,
         name          = file.filename,
@@ -98,7 +115,33 @@ async def upload_dataset(
     from app.workers.tasks import train_model_task
     train_model_task.delay(job.id)
 
-    return UploadResponse(dataset=dataset, job_id=job.id)
+    return UploadResponse(
+        job_id  = job.id,
+        dataset = dataset
+    )
+
+
+@router.get("/jobs/{job_id}/results")
+def get_job_results(
+    job_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get full training results for a completed job."""
+    job = db.query(Job)\
+        .filter(Job.id == job_id, Job.user_id == current_user.id)\
+        .first()
+
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if job.status != "completed":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Job not completed yet. Status: {job.status}"
+        )
+
+    return job.result
 
 
 @router.get("/jobs/{job_id}", response_model=JobResponse)
@@ -124,11 +167,10 @@ def get_datasets(
     current_user: User = Depends(get_current_user)
 ):
     """Get all datasets for the current user."""
-    datasets = db.query(Dataset)\
+    return db.query(Dataset)\
         .filter(Dataset.user_id == current_user.id)\
         .order_by(Dataset.created_at.desc())\
         .all()
-    return datasets
 
 
 @router.get("/{dataset_id}", response_model=DatasetResponse)
@@ -165,25 +207,3 @@ def delete_dataset(
     delete_file(dataset.file_path)
     db.delete(dataset)
     db.commit()
-
-@router.get("/jobs/{job_id}/results")
-def get_job_results(
-    job_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Get full training results for a completed job."""
-    job = db.query(Job)\
-        .filter(Job.id == job_id, Job.user_id == current_user.id)\
-        .first()
-
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-
-    if job.status != "completed":
-        raise HTTPException(
-            status_code=400,
-            detail=f"Job is not completed yet. Current status: {job.status}"
-        )
-
-    return job.result

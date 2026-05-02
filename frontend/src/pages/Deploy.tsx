@@ -20,20 +20,19 @@ export default function Deploy() {
   const { jobId }  = useParams()
   const navigate   = useNavigate()
 
-  const [modelName, setModelName]   = useState('')
-  const [deploying, setDeploying]   = useState(false)
-  const [deployed, setDeployed]     = useState<DeployedModel | null>(null)
-  const [error, setError]           = useState('')
+  const [modelName, setModelName]       = useState('')
+  const [deploying, setDeploying]       = useState(false)
+  const [deployed, setDeployed]         = useState<DeployedModel | null>(null)
+  const [error, setError]               = useState('')
   const [apiKeyCopied, setApiKeyCopied] = useState(false)
   const [urlCopied, setUrlCopied]       = useState(false)
   const [curlCopied, setCurlCopied]     = useState(false)
   const [showKey, setShowKey]           = useState(false)
 
-  // Prediction tester state
-  const [predInputs, setPredInputs]     = useState<Record<string, string>>({})
-  const [predResult, setPredResult]     = useState<any>(null)
-  const [predicting, setPredicting]     = useState(false)
-  const [predError, setPredError]       = useState('')
+  const [predInputs, setPredInputs] = useState<Record<string, string>>({})
+  const [predResult, setPredResult] = useState<any>(null)
+  const [predicting, setPredicting] = useState(false)
+  const [predError, setPredError]   = useState('')
 
   async function handleDeploy() {
     if (!modelName.trim()) {
@@ -42,22 +41,16 @@ export default function Deploy() {
     }
     setDeploying(true)
     setError('')
-
     try {
       const res = await api.post('/deploy/', {
         job_id: parseInt(jobId!),
         name:   modelName,
       })
-
-      // Fetch full model details including api key
       const modelRes = await api.get(`/deploy/models/${res.data.deployed_model_id}`)
       setDeployed(modelRes.data)
-
-      // Initialize prediction inputs with empty strings
       const inputs: Record<string, string> = {}
       modelRes.data.features.forEach((f: string) => { inputs[f] = '' })
       setPredInputs(inputs)
-
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Deployment failed')
     } finally {
@@ -70,18 +63,14 @@ export default function Deploy() {
     setPredicting(true)
     setPredError('')
     setPredResult(null)
-
     try {
-      // Convert string inputs to numbers where possible
       const data: Record<string, any> = {}
       Object.entries(predInputs).forEach(([key, val]) => {
         const num = parseFloat(val)
         data[key] = isNaN(num) ? val : num
       })
-
       const res = await api.post(`/deploy/predict/${deployed.id}`, { data })
       setPredResult(res.data)
-
     } catch (err: any) {
       setPredError(err.response?.data?.detail || 'Prediction failed')
     } finally {
@@ -95,20 +84,15 @@ export default function Deploy() {
     setTimeout(() => setter(false), 2000)
   }
 
-  const endpoint = deployed
-    ? `http://localhost:8000/deploy/v1/predict`
-    : ''
-
-  const curlExample = deployed
-    ? `curl -X POST "${endpoint}" \\
+  const endpoint    = `http://localhost:8000/deploy/v1/predict`
+  const curlExample = deployed ? `curl -X POST "${endpoint}" \\
   -H "Content-Type: application/json" \\
   -d '{
     "api_key": "${deployed.api_key}",
     "data": {
       ${deployed.features.slice(0, 3).map(f => `"${f}": <value>`).join(',\n      ')}
     }
-  }'`
-    : ''
+  }'` : ''
 
   return (
     <DashboardLayout>
@@ -132,7 +116,6 @@ export default function Deploy() {
         </div>
 
         {!deployed ? (
-          /* ── Pre-deploy form ── */
           <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
             className="rounded-xl p-6">
             <h2 style={{ color: '#E5E7EB' }} className="text-sm font-semibold mb-1">
@@ -141,24 +124,17 @@ export default function Deploy() {
             <p style={{ color: '#6B7280' }} className="text-xs mb-5">
               Give it a descriptive name so you can identify it later
             </p>
-
             <input
               type="text"
               value={modelName}
               onChange={e => setModelName(e.target.value)}
               placeholder="e.g. churn-predictor-v1"
-              style={{
-                backgroundColor: '#0D1117',
-                border: '1px solid #1F2937',
-                color: '#E5E7EB',
-              }}
+              style={{ backgroundColor: '#0D1117', border: '1px solid #1F2937', color: '#E5E7EB' }}
               className="w-full rounded-lg px-4 py-2.5 text-sm outline-none mb-4 font-mono"
             />
-
             {error && (
               <p style={{ color: '#FCA5A5' }} className="text-sm mb-4">{error}</p>
             )}
-
             <button
               onClick={handleDeploy}
               disabled={deploying}
@@ -174,7 +150,6 @@ export default function Deploy() {
             </button>
           </div>
         ) : (
-          /* ── Post-deploy info ── */
           <div className="space-y-6">
 
             {/* Success banner */}
@@ -189,7 +164,6 @@ export default function Deploy() {
                 </p>
                 <p style={{ color: '#9CA3AF' }} className="text-sm">
                   <strong style={{ color: '#E5E7EB' }}>{deployed.name}</strong> is live.
-                  Share the API key to let others call your model.
                 </p>
               </div>
             </div>
@@ -202,12 +176,12 @@ export default function Deploy() {
               </h3>
               <div className="grid grid-cols-2 gap-4">
                 {[
-                  { label: 'Algorithm',    value: deployed.model_name },
-                  { label: 'Type',         value: deployed.problem_type },
-                  { label: 'Performance',  value: deployed.accuracy ? `${(deployed.accuracy * 100).toFixed(1)}%` : 'N/A' },
-                  { label: 'Features',     value: `${deployed.features.length} input features` },
-                  { label: 'Target',       value: deployed.target_column },
-                  { label: 'API calls',    value: deployed.call_count.toString() },
+                  { label: 'Algorithm',   value: deployed.model_name },
+                  { label: 'Type',        value: deployed.problem_type },
+                  { label: 'Performance', value: deployed.accuracy ? `${(deployed.accuracy * 100).toFixed(2)}%` : 'N/A' },
+                  { label: 'Features',    value: `${deployed.features.length} input features` },
+                  { label: 'Target',      value: deployed.target_column },
+                  { label: 'API calls',   value: deployed.call_count.toString() },
                 ].map((item, i) => (
                   <div key={i}>
                     <p style={{ color: '#4B5563' }} className="text-xs mb-0.5">{item.label}</p>
@@ -226,13 +200,9 @@ export default function Deploy() {
               <p style={{ color: '#4B5563' }} className="text-xs mb-4">
                 Keep this secret. Anyone with this key can call your model.
               </p>
-
-              <div style={{
-                backgroundColor: '#0D1117',
-                border: '1px solid #1F2937',
-              }} className="rounded-lg px-4 py-3 flex items-center justify-between gap-3">
-                <span style={{ color: '#A5B4FC' }}
-                  className="text-sm font-mono flex-1 overflow-hidden">
+              <div style={{ backgroundColor: '#0D1117', border: '1px solid #1F2937' }}
+                className="rounded-lg px-4 py-3 flex items-center justify-between gap-3">
+                <span style={{ color: '#A5B4FC' }} className="text-sm font-mono flex-1 overflow-hidden">
                   {showKey ? deployed.api_key : '•'.repeat(40)}
                 </span>
                 <div className="flex items-center gap-2 shrink-0">
@@ -267,11 +237,8 @@ export default function Deploy() {
               <p style={{ color: '#4B5563' }} className="text-xs mb-4">
                 Send POST requests to this URL with your API key
               </p>
-
-              <div style={{
-                backgroundColor: '#0D1117',
-                border: '1px solid #1F2937',
-              }} className="rounded-lg px-4 py-3 flex items-center justify-between gap-3">
+              <div style={{ backgroundColor: '#0D1117', border: '1px solid #1F2937' }}
+                className="rounded-lg px-4 py-3 flex items-center justify-between gap-3">
                 <span style={{ color: '#9CA3AF' }} className="text-sm font-mono">
                   {endpoint}
                 </span>
@@ -310,36 +277,30 @@ export default function Deploy() {
                 </button>
               </div>
               <pre style={{
-                backgroundColor: '#0D1117',
-                color: '#9CA3AF',
-                padding: '16px 20px',
-                fontSize: '12px',
+                backgroundColor: '#0D1117', color: '#9CA3AF',
+                padding: '16px 20px', fontSize: '12px',
                 fontFamily: 'JetBrains Mono, monospace',
-                overflowX: 'auto',
-                margin: 0,
+                overflowX: 'auto', margin: 0,
               }}>
                 {curlExample}
               </pre>
             </div>
 
-            {/* Required Features */}
+            {/* Required features */}
             <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
               className="rounded-xl p-5">
               <h3 style={{ color: '#E5E7EB' }} className="text-sm font-semibold mb-1">
                 Required input features
               </h3>
               <p style={{ color: '#4B5563' }} className="text-xs mb-4">
-                Your request body must include all of these fields
+                Your request must include all of these fields
               </p>
               <div className="flex flex-wrap gap-2">
                 {deployed.features.map((f, i) => (
                   <span key={i} style={{
-                    backgroundColor: '#0D1117',
-                    border: '1px solid #1F2937',
-                    color: '#9CA3AF',
-                    fontSize: '11px',
-                    padding: '4px 10px',
-                    borderRadius: '6px',
+                    backgroundColor: '#0D1117', border: '1px solid #1F2937',
+                    color: '#9CA3AF', fontSize: '11px',
+                    padding: '4px 10px', borderRadius: '6px',
                     fontFamily: 'JetBrains Mono, monospace',
                   }}>
                     {f}
@@ -356,31 +317,22 @@ export default function Deploy() {
                   🧪 Live Prediction Tester
                 </h3>
                 <p style={{ color: '#4B5563' }} className="text-xs">
-                  Test your deployed model right here with real values
+                  Test your deployed model right here
                 </p>
               </div>
-
               <div className="p-5">
                 <div className="grid grid-cols-2 gap-3 mb-4">
                   {deployed.features.map((feature) => (
                     <div key={feature}>
-                      <label style={{ color: '#6B7280' }}
-                        className="text-xs block mb-1 font-mono">
+                      <label style={{ color: '#6B7280' }} className="text-xs block mb-1 font-mono">
                         {feature}
                       </label>
                       <input
                         type="text"
                         value={predInputs[feature] || ''}
-                        onChange={e => setPredInputs(prev => ({
-                          ...prev,
-                          [feature]: e.target.value
-                        }))}
+                        onChange={e => setPredInputs(prev => ({ ...prev, [feature]: e.target.value }))}
                         placeholder="enter value"
-                        style={{
-                          backgroundColor: '#0D1117',
-                          border: '1px solid #1F2937',
-                          color: '#E5E7EB',
-                        }}
+                        style={{ backgroundColor: '#0D1117', border: '1px solid #1F2937', color: '#E5E7EB' }}
                         className="w-full rounded-lg px-3 py-2 text-xs font-mono outline-none"
                       />
                     </div>
@@ -400,11 +352,10 @@ export default function Deploy() {
                   <p style={{ color: '#FCA5A5' }} className="text-sm mb-4">{predError}</p>
                 )}
 
-                {/* Prediction Result */}
                 {predResult && (
                   <div className="space-y-4 animate-fade-in">
 
-                    {/* Main prediction */}
+                    {/* Prediction value */}
                     <div style={{
                       background: 'linear-gradient(135deg, rgba(59,130,246,0.1), rgba(99,102,241,0.1))',
                       border: '1px solid rgba(99,102,241,0.3)',
@@ -421,10 +372,8 @@ export default function Deploy() {
                     </div>
 
                     {/* Plain English */}
-                    <div style={{
-                      backgroundColor: '#0D1117',
-                      border: '1px solid #1F2937',
-                    }} className="rounded-lg p-4">
+                    <div style={{ backgroundColor: '#0D1117', border: '1px solid #1F2937' }}
+                      className="rounded-lg p-4">
                       <p style={{ color: '#4B5563' }} className="text-xs mb-2 uppercase tracking-wide">
                         Why this prediction?
                       </p>
@@ -433,40 +382,32 @@ export default function Deploy() {
                       </p>
                     </div>
 
-                    {/* SHAP waterfall for this prediction */}
+                    {/* SHAP breakdown */}
                     {predResult.shap_explanation?.length > 0 && (
-                      <div style={{
-                        backgroundColor: '#0D1117',
-                        border: '1px solid #1F2937',
-                      }} className="rounded-lg p-4">
+                      <div style={{ backgroundColor: '#0D1117', border: '1px solid #1F2937' }}
+                        className="rounded-lg p-4">
                         <p style={{ color: '#4B5563' }} className="text-xs mb-3 uppercase tracking-wide">
                           SHAP breakdown — this specific prediction
                         </p>
                         <div className="space-y-3">
                           {predResult.shap_explanation.slice(0, 6).map((s: any, i: number) => {
-                            const isPos    = s.shap_value >= 0
-                            const maxShap  = Math.abs(predResult.shap_explanation[0].shap_value)
-                            const barWidth = `${(Math.abs(s.shap_value) / maxShap) * 100}%`
-
+                            const isPos   = s.shap_value >= 0
+                            const maxShap = Math.abs(predResult.shap_explanation[0].shap_value)
+                            const barW    = `${(Math.abs(s.shap_value) / maxShap) * 100}%`
                             return (
                               <div key={i}>
                                 <div className="flex items-center justify-between mb-1">
                                   <div className="flex items-center gap-2">
-                                    <span style={{
-                                      color: isPos ? '#6366F1' : '#EF4444',
-                                      fontSize: '10px', fontWeight: '700',
-                                    }}>
+                                    <span style={{ color: isPos ? '#6366F1' : '#EF4444', fontSize: '10px', fontWeight: '700' }}>
                                       {isPos ? '+' : '−'}
                                     </span>
-                                    <span style={{ color: '#9CA3AF' }}
-                                      className="text-xs font-mono">
+                                    <span style={{ color: '#9CA3AF' }} className="text-xs font-mono">
                                       {s.feature} = {s.value}
                                     </span>
                                   </div>
                                   <span style={{
                                     color: isPos ? '#A5B4FC' : '#FCA5A5',
-                                    fontSize: '11px',
-                                    fontFamily: 'JetBrains Mono, monospace',
+                                    fontSize: '11px', fontFamily: 'JetBrains Mono, monospace',
                                   }}>
                                     {isPos ? '+' : ''}{s.shap_value.toFixed(4)}
                                   </span>
@@ -475,7 +416,7 @@ export default function Deploy() {
                                   <div style={{ width: '50%', display: 'flex', justifyContent: 'flex-end' }}>
                                     {!isPos && (
                                       <div style={{
-                                        height: '4px', width: barWidth,
+                                        height: '4px', width: barW,
                                         background: 'linear-gradient(135deg, #EF4444, #DC2626)',
                                         borderRadius: '3px 0 0 3px',
                                       }} />
@@ -485,7 +426,7 @@ export default function Deploy() {
                                   <div style={{ width: '50%' }}>
                                     {isPos && (
                                       <div style={{
-                                        height: '4px', width: barWidth,
+                                        height: '4px', width: barW,
                                         background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
                                         borderRadius: '0 3px 3px 0',
                                       }} />
