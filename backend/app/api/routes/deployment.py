@@ -15,14 +15,130 @@ from app.models.job import Job
 from app.models.deployed_model import DeployedModel, APIKey
 from app.schemas.deployment import (
     DeployRequest, DeployedModelResponse,
-    APIKeyResponse, PredictRequest, PredictionResult
+    PredictRequest, PredictionResult
 )
 
 router = APIRouter(prefix="/deploy", tags=["Deployment"])
 
 
+def _compute_shap(model, input_arr, features, problem_type):
+    """
+    Compute SHAP values for a single prediction.
+    Tries TreeExplainer first (fast, tree models only).
+    Falls back to KernelExplainer (slower but works for any model).
+    Returns sorted list of SHAP explanations.
+    """
+    try:
+        import shap
+
+        # Try TreeExplainer first — works for RF, XGB, LightGBM, etc.
+        try:
+            explainer = shap.TreeExplainer(model)
+            shap_vals = explainer.shap_values(input_arr)
+        except Exception:
+            # Fallback: KernelExplainer works for ANY model
+            # Uses a small background dataset (zeros as approximation)
+            background = np.zeros((1, len(features)))
+            explainer  = shap.KernelExplainer(
+                model.predict_proba if (
+                    problem_type == "classification" and
+                    hasattr(model, "predict_proba")
+                ) else model.predict,
+                background
+            )
+            shap_vals = explainer.shap_values(input_arr, nsamples=100)
+
+        # Handle different output shapes
+        if problem_type == "classification":
+            if isinstance(shap_vals, list):
+                # Multi-class or binary from TreeExplainer
+                # Take positive class (index 1 for binary)
+                sv = shap_vals[1][0] if len(shap_vals) > 1 else shap_vals[0][0]
+            elif isinstance(shap_vals, np.ndarray):
+                if shap_vals.ndim == 3:
+                    # Shape: (samples, features, classes) — take class 1
+                    sv = shap_vals[0, :, 1]
+                elif shap_vals.ndim == 2:
+                    sv = shap_vals[0]
+                else:
+                    sv = shap_vals
+            else:
+                sv = shap_vals[0]
+        else:
+            # Regression
+            if isinstance(shap_vals, list):
+                sv = shap_vals[0][0]
+            elif isinstance(shap_vals, np.ndarray):
+                if shap_vals.ndim == 2:
+                    sv = shap_vals[0]
+                else:
+                    sv = shap_vals
+            else:
+                sv = shap_vals
+
+        # Build explanation list
+        explanation = []
+        for i, feature in enumerate(features):
+            val = float(sv[i]) if i < len(sv) else 0.0
+            explanation.append({
+                "feature":    feature,
+                "value":      None,   # filled by caller
+                "shap_value": round(val, 4),
+                "direction":  "increases" if val > 0 else "decreases",
+                "magnitude":  round(abs(val), 4),
+            })
+
+        return sorted(explanation, key=lambda x: x["magnitude"], reverse=True)
+
+    except Exception as e:
+        return []
+
+
+def _generate_plain_english(
+    prediction, shap_explanation: list,
+    problem_type: str, target: str,
+    probability: float = None
+) -> str:
+    if not shap_explanation:
+        if problem_type == "classification":
+            prob_str = f" (confidence: {probability * 100:.1f}%)" if probability else ""
+            return f"The model predicted class {prediction}{prob_str}."
+        else:
+            return f"The model predicted {target} = {prediction:.4f}."
+
+    top_factors = [f for f in shap_explanation[:3] if f["magnitude"] > 0]
+
+    if problem_type == "classification":
+        prob_str    = f" (confidence: {probability * 100:.1f}%)" if probability else ""
+        explanation = f"The model predicted class {prediction}{prob_str}. "
+        if top_factors:
+            explanation += "The main reasons are: "
+            reasons = []
+            for f in top_factors:
+                direction = "increases" if f["direction"] == "increases" else "decreases"
+                reasons.append(
+                    f"{f['feature']} = {f['value']} "
+                    f"({direction} the prediction by {f['magnitude']:.4f})"
+                )
+            explanation += ", ".join(reasons) + "."
+    else:
+        explanation = f"The model predicted {target} = {prediction:.4f}. "
+        if top_factors:
+            explanation += "Top factors driving this: "
+            reasons = []
+            for f in top_factors:
+                direction = "pushed it higher" if f["direction"] == "increases" \
+                            else "pushed it lower"
+                reasons.append(
+                    f"{f['feature']} = {f['value']} ({direction} by {f['magnitude']:.4f})"
+                )
+            explanation += ", ".join(reasons) + "."
+
+    return explanation
+
+
 # ─────────────────────────────────────────────────────────
-# DEPLOY A TRAINED MODEL
+# DEPLOY
 # ─────────────────────────────────────────────────────────
 
 @router.post("/", response_model=dict, status_code=201)
@@ -39,7 +155,10 @@ def deploy_model(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     if job.status != "completed":
-        raise HTTPException(status_code=400, detail=f"Job not completed. Status: {job.status}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Job not completed. Status: {job.status}"
+        )
 
     result = job.result
     if not result:
@@ -49,13 +168,13 @@ def deploy_model(
     if not model_path or not os.path.exists(model_path):
         raise HTTPException(
             status_code=400,
-            detail="Trained model file not found on disk. Please retrain the model."
+            detail="Trained model file not found. Please retrain the model first."
         )
 
-    # Check if already deployed
+    # Already deployed?
     existing = db.query(DeployedModel).filter(
-        DeployedModel.job_id   == request.job_id,
-        DeployedModel.user_id  == current_user.id,
+        DeployedModel.job_id    == request.job_id,
+        DeployedModel.user_id   == current_user.id,
         DeployedModel.is_active == True
     ).first()
 
@@ -71,10 +190,12 @@ def deploy_model(
             "already_existed":   True,
         }
 
-    # Get target column from dataset
     target_column = ""
-    if job.dataset:
+    if hasattr(job, 'dataset') and job.dataset:
         target_column = job.dataset.target_column or ""
+
+    metrics    = result.get("best_metrics") or {}
+    accuracy   = metrics.get("accuracy") or metrics.get("r2_score")
 
     deployed = DeployedModel(
         user_id       = current_user.id,
@@ -83,12 +204,11 @@ def deploy_model(
         name          = request.name,
         model_name    = result.get("best_model", "Unknown"),
         problem_type  = result.get("problem_type", "classification"),
-        accuracy      = (result.get("best_metrics") or {}).get("accuracy") or
-                        (result.get("best_metrics") or {}).get("r2_score"),
+        accuracy      = accuracy,
         features      = result.get("features", []),
         target_column = target_column,
         model_path    = model_path,
-        metrics       = result.get("best_metrics", {}),
+        metrics       = metrics,
         is_active     = True,
     )
     db.add(deployed)
@@ -124,13 +244,13 @@ def list_deployed_models(
     current_user: User = Depends(get_current_user)
 ):
     return db.query(DeployedModel).filter(
-        DeployedModel.user_id  == current_user.id,
+        DeployedModel.user_id   == current_user.id,
         DeployedModel.is_active == True
     ).order_by(DeployedModel.created_at.desc()).all()
 
 
 # ─────────────────────────────────────────────────────────
-# GET ONE DEPLOYED MODEL WITH API KEY
+# GET ONE DEPLOYED MODEL
 # ─────────────────────────────────────────────────────────
 
 @router.get("/models/{model_id}")
@@ -168,7 +288,7 @@ def get_deployed_model(
 
 
 # ─────────────────────────────────────────────────────────
-# PREDICT — AUTHENTICATED (via JWT, for the tester UI)
+# PREDICT — JWT authenticated (prediction tester UI)
 # ─────────────────────────────────────────────────────────
 
 @router.post("/predict/{model_id}", response_model=PredictionResult)
@@ -179,8 +299,8 @@ def predict(
     current_user: User = Depends(get_current_user)
 ):
     model_record = db.query(DeployedModel).filter(
-        DeployedModel.id      == model_id,
-        DeployedModel.user_id == current_user.id,
+        DeployedModel.id        == model_id,
+        DeployedModel.user_id   == current_user.id,
         DeployedModel.is_active == True
     ).first()
 
@@ -201,8 +321,9 @@ def predict(
     features     = package["features"]
     problem_type = package["problem_type"]
     model_name   = package["model_name"]
+    target       = package["target"]
 
-    # Validate all required features present
+    # Validate features
     missing = [f for f in features if f not in request.data]
     if missing:
         raise HTTPException(
@@ -210,7 +331,7 @@ def predict(
             detail=f"Missing features: {missing}. Required: {features}"
         )
 
-    # Convert all values to float — reject strings with clear message
+    # Convert to float
     converted_data = {}
     for f in features:
         val = request.data.get(f)
@@ -220,12 +341,13 @@ def predict(
             raise HTTPException(
                 status_code=400,
                 detail=f"Feature '{f}' must be a number. Got: '{val}'. "
-                       f"Note: text columns like Surname are label-encoded — enter a number instead."
+                       f"Text columns were encoded during training — enter a number."
             )
 
     input_df  = pd.DataFrame([converted_data])[features]
     input_arr = scaler.transform(input_df)
 
+    # Predict
     prediction = model.predict(input_arr)[0]
 
     probability      = None
@@ -240,35 +362,16 @@ def predict(
     else:
         prediction_val = float(round(float(prediction), 4))
 
-    # SHAP for this prediction
-    shap_explanation = []
-    try:
-        import shap
-        explainer = shap.TreeExplainer(model)
-        shap_vals = explainer.shap_values(input_arr)
+    # SHAP
+    shap_explanation = _compute_shap(model, input_arr, features, problem_type)
 
-        if problem_type == "classification" and isinstance(shap_vals, list):
-            sv = shap_vals[1][0]
-        else:
-            sv = shap_vals[0]
-
-        shap_explanation = sorted([
-            {
-                "feature":    features[i],
-                "value":      converted_data.get(features[i]),
-                "shap_value": round(float(sv[i]), 4),
-                "direction":  "increases" if sv[i] > 0 else "decreases",
-                "magnitude":  round(abs(float(sv[i])), 4),
-            }
-            for i in range(len(features))
-        ], key=lambda x: x["magnitude"], reverse=True)
-
-    except Exception:
-        shap_explanation = []
+    # Fill in actual values
+    for item in shap_explanation:
+        item["value"] = converted_data.get(item["feature"])
 
     plain_english = _generate_plain_english(
         prediction_val, shap_explanation,
-        problem_type, package["target"], probability
+        problem_type, target, probability
     )
 
     model_record.call_count += 1
@@ -286,7 +389,7 @@ def predict(
 
 
 # ─────────────────────────────────────────────────────────
-# PUBLIC PREDICT — via API key (for external apps)
+# PUBLIC PREDICT — API key authenticated (external apps)
 # ─────────────────────────────────────────────────────────
 
 @router.post("/v1/predict")
@@ -321,12 +424,15 @@ def public_predict(
     scaler       = package["scaler"]
     features     = package["features"]
     problem_type = package["problem_type"]
+    target       = package["target"]
 
     missing = [f for f in features if f not in request.data]
     if missing:
-        raise HTTPException(status_code=400, detail=f"Missing features: {missing}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Missing features: {missing}"
+        )
 
-    # Convert to float
     converted_data = {}
     for f in features:
         val = request.data.get(f)
@@ -347,32 +453,13 @@ def public_predict(
         proba       = model.predict_proba(input_arr)[0]
         probability = float(max(proba))
 
-    shap_explanation = []
-    try:
-        import shap
-        explainer = shap.TreeExplainer(model)
-        shap_vals = explainer.shap_values(input_arr)
-        if problem_type == "classification" and isinstance(shap_vals, list):
-            sv = shap_vals[1][0]
-        else:
-            sv = shap_vals[0]
-
-        shap_explanation = sorted([
-            {
-                "feature":    features[i],
-                "value":      converted_data.get(features[i]),
-                "shap_value": round(float(sv[i]), 4),
-                "direction":  "increases" if sv[i] > 0 else "decreases",
-                "magnitude":  round(abs(float(sv[i])), 4),
-            }
-            for i in range(len(features))
-        ], key=lambda x: x["magnitude"], reverse=True)
-    except Exception:
-        pass
+    shap_explanation = _compute_shap(model, input_arr, features, problem_type)
+    for item in shap_explanation:
+        item["value"] = converted_data.get(item["feature"])
 
     plain_english = _generate_plain_english(
         float(prediction), shap_explanation,
-        problem_type, package["target"], probability
+        problem_type, target, probability
     )
 
     key_record.call_count   += 1
@@ -387,43 +474,3 @@ def public_predict(
         "plain_english":    plain_english,
         "model":            package["model_name"],
     }
-
-
-# ─────────────────────────────────────────────────────────
-# HELPER
-# ─────────────────────────────────────────────────────────
-
-def _generate_plain_english(
-    prediction, shap_explanation: list,
-    problem_type: str, target: str,
-    probability: float = None
-) -> str:
-    if not shap_explanation:
-        return f"The model predicted {prediction} for {target}."
-
-    top_factors = shap_explanation[:3]
-
-    if problem_type == "classification":
-        prob_str = f" (confidence: {probability * 100:.1f}%)" if probability else ""
-        explanation = f"The model predicted class {prediction}{prob_str}. "
-        explanation += "The main reasons are: "
-        reasons = []
-        for f in top_factors:
-            direction = "increases" if f["direction"] == "increases" else "decreases"
-            reasons.append(
-                f"{f['feature']} = {f['value']} "
-                f"({direction} the prediction by {f['magnitude']:.4f})"
-            )
-        explanation += ", ".join(reasons) + "."
-    else:
-        explanation = f"The model predicted {target} = {prediction:.2f}. "
-        explanation += "Top factors: "
-        reasons = []
-        for f in top_factors:
-            direction = "pushed it higher" if f["direction"] == "increases" else "pushed it lower"
-            reasons.append(
-                f"{f['feature']} = {f['value']} ({direction} by {f['magnitude']:.4f})"
-            )
-        explanation += ", ".join(reasons) + "."
-
-    return explanation
