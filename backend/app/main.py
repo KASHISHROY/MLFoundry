@@ -16,7 +16,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
-        "https://ml-foundry.vercel.app"
+        "https://ml-foundry.vercel.app",
+        "https://ml-foundry-git-main-kashishroys-projects.vercel.app",
+        "https://ml-foundry-lxfz8uhzu-kashishroys-projects.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
