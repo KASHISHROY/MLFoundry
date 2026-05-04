@@ -21,10 +21,7 @@ interface RecentModel {
   created_at:   string
 }
 
-const statusColors: Record<string, string> = {
-  classification: '#6366F1',
-  regression:     '#3B82F6',
-}
+
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()

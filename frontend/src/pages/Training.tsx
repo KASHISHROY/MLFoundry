@@ -133,7 +133,7 @@ export default function Training() {
             {STAGES.map((stage, idx) => {
               const isDone    = idx < currentStageIdx
               const isCurrent = idx === currentStageIdx
-              const isPending = idx > currentStageIdx
+              
 
               return (
                 <div key={stage.key} className="flex flex-col items-center gap-1.5">
