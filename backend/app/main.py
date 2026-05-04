@@ -20,7 +20,7 @@ app.add_middleware(
         "https://ml-foundry-git-main-kashishroys-projects.vercel.app",
         "https://ml-foundry-lxfz8uhzu-kashishroys-projects.vercel.app",
     ],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
