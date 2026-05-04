@@ -5,13 +5,13 @@ import DashboardLayout from '../components/DashboardLayout'
 import api from '../services/api'
 
 interface ParsedCSV {
-  headers: string[]
-  rows: string[][]
+  headers:   string[]
+  rows:      string[][]
   totalRows: number
 }
 
 export default function Upload() {
-  const navigate    = useNavigate()
+  const navigate     = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [file, setFile]           = useState<File | null>(null)
@@ -20,16 +20,19 @@ export default function Upload() {
   const [dragging, setDragging]   = useState(false)
   const [error, setError]         = useState('')
   const [uploading, setUploading] = useState(false)
+  const [cachedMsg, setCachedMsg] = useState('')
 
-  // ── Parse CSV in browser for preview ──────────────────
+  const ALLOWED = ['.csv', '.xlsx', '.xls', '.json', '.parquet', '.tsv']
+
   function parseFile(f: File) {
     setError('')
     setFile(null)
     setParsed(null)
     setTarget('')
+    setCachedMsg('')
 
-    if (!f.name.endsWith('.csv')) {
-      setError('Only CSV files are allowed')
+    if (!ALLOWED.some(ext => f.name.toLowerCase().endsWith(ext))) {
+      setError(`Unsupported file. Allowed: ${ALLOWED.join(', ')}`)
       return
     }
 
@@ -38,30 +41,41 @@ export default function Upload() {
       return
     }
 
-    Papa.parse(f, {
-      complete: (results) => {
-        const allRows = results.data as string[][]
-        const headers = allRows[0]
-        const dataRows = allRows.slice(1).filter(r => r.some(c => c !== ''))
+    const isCSV = f.name.toLowerCase().endsWith('.csv')
 
-        if (!headers || headers.length === 0) {
-          setError('CSV appears to be empty')
-          return
-        }
+    if (isCSV) {
+      Papa.parse(f, {
+        complete: (results) => {
+          const allRows  = results.data as string[][]
+          const headers  = allRows[0]
+          const dataRows = allRows.slice(1).filter(r => r.some(c => c !== ''))
 
-        setParsed({
-          headers,
-          rows:      dataRows.slice(0, 5),
-          totalRows: dataRows.length,
-        })
-        setFile(f)
-        setTarget(headers[headers.length - 1])
-      },
-      error: () => setError('Failed to parse CSV file'),
-    })
+          if (!headers || headers.length === 0) {
+            setError('CSV appears to be empty')
+            return
+          }
+
+          setParsed({
+            headers,
+            rows:      dataRows.slice(0, 5),
+            totalRows: dataRows.length,
+          })
+          setFile(f)
+          setTarget(headers[headers.length - 1])
+        },
+        error: () => setError('Failed to parse CSV file'),
+      })
+    } else {
+      // Non-CSV: no client-side preview
+      setFile(f)
+      setParsed({
+        headers:   ['Preview not available for this format'],
+        rows:      [['Server will parse the file and show columns during training.']],
+        totalRows: 0,
+      })
+    }
   }
 
-  // ── Drag and drop ──────────────────────────────────────
   const onDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setDragging(true)
@@ -81,11 +95,11 @@ export default function Upload() {
     if (selected) parseFile(selected)
   }
 
-  // ── Upload to backend ──────────────────────────────────
   async function handleUpload() {
     if (!file || !targetColumn) return
     setUploading(true)
     setError('')
+    setCachedMsg('')
 
     try {
       const formData = new FormData()
@@ -96,21 +110,36 @@ export default function Upload() {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
 
-      // Navigate to live training screen
+      // Check if cached result returned
+      if (response.data.cached) {
+        setCachedMsg(response.data.cache_message)
+        setTimeout(() => {
+          navigate(`/results/${response.data.job_id}`)
+        }, 2000)
+        return
+      }
+
       navigate(`/jobs/${response.data.job_id}`)
 
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Upload failed')
+      const detail = err.response?.data?.detail || 'Upload failed'
+      if (err.response?.status === 403) {
+        setError(detail + ' Go to /upgrade to get Pro.')
+      } else {
+        setError(detail)
+      }
     } finally {
       setUploading(false)
     }
   }
 
   function formatSize(bytes: number) {
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    if (bytes < 1024)         return `${bytes} B`
+    if (bytes < 1024 * 1024)  return `${(bytes / 1024).toFixed(1)} KB`
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
+
+  const isNonCSV = file && !file.name.toLowerCase().endsWith('.csv')
 
   return (
     <DashboardLayout>
@@ -122,7 +151,8 @@ export default function Upload() {
             Upload Dataset
           </h1>
           <p style={{ color: '#6B7280' }} className="text-sm">
-            Upload a CSV and our AI agents will train the best model automatically.
+            Upload a dataset and our AI agents will train the best model automatically.
+            Supports CSV, Excel, JSON, Parquet, TSV.
           </p>
         </div>
 
@@ -143,7 +173,7 @@ export default function Upload() {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".csv"
+            accept=".csv,.xlsx,.xls,.json,.parquet,.tsv"
             onChange={onFileChange}
             className="hidden"
           />
@@ -164,7 +194,8 @@ export default function Upload() {
                 {file.name}
               </p>
               <p style={{ color: '#6B7280' }} className="text-sm">
-                {formatSize(file.size)} · {parsed?.totalRows} rows · {parsed?.headers.length} columns
+                {formatSize(file.size)}
+                {parsed?.totalRows ? ` · ${parsed.totalRows} rows · ${parsed.headers.length} columns` : ''}
               </p>
               <p style={{ color: '#4B5563' }} className="text-xs mt-2">
                 Click to choose a different file
@@ -183,7 +214,7 @@ export default function Upload() {
                 📂
               </div>
               <p style={{ color: '#E5E7EB' }} className="font-semibold text-lg mb-1">
-                Drop your CSV here
+                Drop your file here
               </p>
               <p style={{ color: '#6B7280' }} className="text-sm mb-3">
                 or click to browse files
@@ -196,11 +227,22 @@ export default function Upload() {
                 padding: '4px 12px',
                 borderRadius: '20px',
               }}>
-                CSV up to 50MB
+                CSV · Excel · JSON · Parquet · TSV — up to 50MB
               </span>
             </div>
           )}
         </div>
+
+        {/* Cached result message */}
+        {cachedMsg && (
+          <div style={{
+            backgroundColor: 'rgba(99,102,241,0.1)',
+            border: '1px solid rgba(99,102,241,0.3)',
+            color: '#A5B4FC',
+          }} className="px-4 py-3 rounded-lg mb-6 text-sm">
+            ⚡ {cachedMsg} Redirecting to results...
+          </div>
+        )}
 
         {/* Error */}
         {error && (
@@ -213,89 +255,97 @@ export default function Upload() {
           </div>
         )}
 
+        {/* Non-CSV notice */}
+        {isNonCSV && (
+          <div style={{
+            backgroundColor: 'rgba(245,158,11,0.1)',
+            border: '1px solid rgba(245,158,11,0.3)',
+            color: '#FCD34D',
+          }} className="px-4 py-3 rounded-lg mb-6 text-sm">
+            ℹ️ Preview not available for {file?.name.split('.').pop()?.toUpperCase()} files.
+            The server will parse the file. Make sure to enter the correct target column name below.
+          </div>
+        )}
+
         {/* Preview + target selector */}
-        {parsed && (
+        {file && (
           <div className="space-y-6 animate-fade-in">
 
-            {/* Preview table */}
-            <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
-              className="rounded-xl overflow-hidden">
-              <div style={{ borderBottom: '1px solid #1F2937' }}
-                className="px-5 py-3.5 flex items-center justify-between">
-                <h2 style={{ color: '#E5E7EB' }} className="text-sm font-semibold">
-                  Preview
-                </h2>
-                <span style={{ color: '#4B5563' }} className="text-xs font-mono">
-                  showing 5 of {parsed.totalRows} rows
-                </span>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr style={{ backgroundColor: '#0D1117', borderBottom: '1px solid #1F2937' }}>
-                      {parsed.headers.map((h, i) => (
-                        <th
-                          key={i}
-                          style={{
-                            color: h === targetColumn ? '#A5B4FC' : '#6B7280',
-                            borderRight: '1px solid #1F2937',
-                            padding: '10px 16px',
-                            textAlign: 'left',
-                            fontSize: '11px',
-                            fontFamily: 'JetBrains Mono, monospace',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {h}
-                          {h === targetColumn && (
-                            <span style={{
-                              backgroundColor: 'rgba(99,102,241,0.2)',
-                              color: '#A5B4FC',
-                              border: '1px solid rgba(99,102,241,0.3)',
-                              fontSize: '10px',
-                              padding: '1px 6px',
-                              borderRadius: '20px',
-                              marginLeft: '8px',
-                            }}>
-                              target
-                            </span>
-                          )}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {parsed.rows.map((row, i) => (
-                      <tr
-                        key={i}
-                        style={{
-                          borderBottom: i < parsed.rows.length - 1 ? '1px solid #1F2937' : 'none',
-                        }}
-                      >
-                        {row.map((cell, j) => (
-                          <td
-                            key={j}
+            {/* CSV Preview Table — only for CSV */}
+            {!isNonCSV && parsed && parsed.headers[0] !== 'Preview not available for this format' && (
+              <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+                className="rounded-xl overflow-hidden">
+                <div style={{ borderBottom: '1px solid #1F2937' }}
+                  className="px-5 py-3.5 flex items-center justify-between">
+                  <h2 style={{ color: '#E5E7EB' }} className="text-sm font-semibold">
+                    Preview
+                  </h2>
+                  <span style={{ color: '#4B5563' }} className="text-xs font-mono">
+                    showing 5 of {parsed.totalRows} rows
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr style={{ backgroundColor: '#0D1117', borderBottom: '1px solid #1F2937' }}>
+                        {parsed.headers.map((h, i) => (
+                          <th
+                            key={i}
                             style={{
-                              color: parsed.headers[j] === targetColumn ? '#C7D2FE' : '#9CA3AF',
+                              color: h === targetColumn ? '#A5B4FC' : '#6B7280',
                               borderRight: '1px solid #1F2937',
                               padding: '10px 16px',
-                              fontFamily: 'JetBrains Mono, monospace',
+                              textAlign: 'left',
                               fontSize: '11px',
+                              fontFamily: 'JetBrains Mono, monospace',
                               whiteSpace: 'nowrap',
                             }}
                           >
-                            {cell}
-                          </td>
+                            {h}
+                            {h === targetColumn && (
+                              <span style={{
+                                backgroundColor: 'rgba(99,102,241,0.2)',
+                                color: '#A5B4FC',
+                                border: '1px solid rgba(99,102,241,0.3)',
+                                fontSize: '10px',
+                                padding: '1px 6px',
+                                borderRadius: '20px',
+                                marginLeft: '8px',
+                              }}>target</span>
+                            )}
+                          </th>
                         ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {parsed.rows.map((row, i) => (
+                        <tr key={i} style={{
+                          borderBottom: i < parsed.rows.length - 1 ? '1px solid #1F2937' : 'none'
+                        }}>
+                          {row.map((cell, j) => (
+                            <td
+                              key={j}
+                              style={{
+                                color: parsed.headers[j] === targetColumn ? '#C7D2FE' : '#9CA3AF',
+                                borderRight: '1px solid #1F2937',
+                                padding: '10px 16px',
+                                fontFamily: 'JetBrains Mono, monospace',
+                                fontSize: '11px',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {cell}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Target column selector */}
+            {/* Target column selector — CSV gets buttons, non-CSV gets text input */}
             <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
               className="rounded-xl p-5">
               <h2 style={{ color: '#E5E7EB' }} className="text-sm font-semibold mb-1">
@@ -304,26 +354,42 @@ export default function Upload() {
               <p style={{ color: '#6B7280' }} className="text-xs mb-4">
                 Which column do you want the model to predict?
               </p>
-              <div className="flex flex-wrap gap-2">
-                {parsed.headers.map((col) => (
-                  <button
-                    key={col}
-                    onClick={() => setTarget(col)}
-                    style={targetColumn === col ? {
-                      background: 'linear-gradient(135deg, rgba(59,130,246,0.2), rgba(99,102,241,0.2))',
-                      border: '1px solid rgba(99,102,241,0.5)',
-                      color: '#A5B4FC',
-                    } : {
-                      backgroundColor: '#0D1117',
-                      border: '1px solid #1F2937',
-                      color: '#6B7280',
-                    }}
-                    className="px-3 py-1.5 rounded-lg text-xs font-mono transition-all hover:border-indigo-500"
-                  >
-                    {col}
-                  </button>
-                ))}
-              </div>
+
+              {!isNonCSV && parsed ? (
+                <div className="flex flex-wrap gap-2">
+                  {parsed.headers.map((col) => (
+                    <button
+                      key={col}
+                      onClick={() => setTarget(col)}
+                      style={targetColumn === col ? {
+                        background: 'linear-gradient(135deg, rgba(59,130,246,0.2), rgba(99,102,241,0.2))',
+                        border: '1px solid rgba(99,102,241,0.5)',
+                        color: '#A5B4FC',
+                      } : {
+                        backgroundColor: '#0D1117',
+                        border: '1px solid #1F2937',
+                        color: '#6B7280',
+                      }}
+                      className="px-3 py-1.5 rounded-lg text-xs font-mono transition-all hover:border-indigo-500"
+                    >
+                      {col}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  value={targetColumn}
+                  onChange={e => setTarget(e.target.value)}
+                  placeholder="Enter exact column name to predict..."
+                  style={{
+                    backgroundColor: '#0D1117',
+                    border: '1px solid #1F2937',
+                    color: '#E5E7EB',
+                  }}
+                  className="w-full rounded-lg px-4 py-2.5 text-sm font-mono outline-none"
+                />
+              )}
             </div>
 
             {/* Upload button */}
