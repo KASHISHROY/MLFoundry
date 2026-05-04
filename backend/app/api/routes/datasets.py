@@ -207,3 +207,76 @@ def delete_dataset(
     delete_file(dataset.file_path)
     db.delete(dataset)
     db.commit()
+
+@router.get("/stats")
+def get_dashboard_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Real dashboard stats from database."""
+    from app.models.deployed_model import DeployedModel, APIKey
+    from sqlalchemy import func
+
+    total_jobs = db.query(Job).filter(
+        Job.user_id == current_user.id,
+        Job.status  == "completed"
+    ).count()
+
+    total_datasets = db.query(Dataset).filter(
+        Dataset.user_id == current_user.id
+    ).count()
+
+    total_deployed = db.query(DeployedModel).filter(
+        DeployedModel.user_id   == current_user.id,
+        DeployedModel.is_active == True
+    ).count()
+
+    total_api_calls = db.query(func.sum(DeployedModel.call_count)).filter(
+        DeployedModel.user_id == current_user.id
+    ).scalar() or 0
+
+    # Recent jobs with results
+    recent_jobs = db.query(Job).filter(
+        Job.user_id == current_user.id,
+        Job.status  == "completed"
+    ).order_by(Job.created_at.desc()).limit(5).all()
+
+    recent_models = []
+    for job in recent_jobs:
+        if job.result:
+            dataset = db.query(Dataset).filter(
+                Dataset.id == job.dataset_id
+            ).first()
+            recent_models.append({
+                "job_id":       job.id,
+                "name":         dataset.name if dataset else f"Job #{job.id}",
+                "best_model":   job.result.get("best_model", "Unknown"),
+                "problem_type": job.result.get("problem_type", "unknown"),
+                "accuracy":     (job.result.get("best_metrics") or {}).get("accuracy") or
+                                (job.result.get("best_metrics") or {}).get("r2_score"),
+                "created_at":   job.created_at.isoformat(),
+            })
+
+    # Average accuracy across all models
+    avg_accuracy = None
+    accuracies = []
+    for job in db.query(Job).filter(
+        Job.user_id == current_user.id,
+        Job.status  == "completed"
+    ).all():
+        if job.result and job.result.get("best_metrics"):
+            acc = job.result["best_metrics"].get("accuracy") or \
+                  job.result["best_metrics"].get("r2_score")
+            if acc:
+                accuracies.append(acc)
+    if accuracies:
+        avg_accuracy = round(sum(accuracies) / len(accuracies) * 100, 1)
+
+    return {
+        "total_models":   total_jobs,
+        "total_datasets": total_datasets,
+        "total_deployed": total_deployed,
+        "total_api_calls":total_api_calls,
+        "avg_accuracy":   avg_accuracy,
+        "recent_models":  recent_models,
+    }
