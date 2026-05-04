@@ -13,6 +13,14 @@ from app.models.job import Job
 from app.schemas.dataset import DatasetResponse, JobResponse, UploadResponse
 from app.services.storage import save_file, delete_file
 
+# Validate file type
+allowed = ('.csv', '.xlsx', '.xls', '.json', '.parquet', '.tsv')
+if not any(file.filename.lower().endswith(ext) for ext in allowed):
+    raise HTTPException(
+    status_code=400,
+    detail=f"Unsupported file type. Allowed: {', '.join(allowed)}"
+        )
+
 router = APIRouter(prefix="/datasets", tags=["Datasets"])
 
 
@@ -62,8 +70,21 @@ async def upload_dataset(
         raise HTTPException(status_code=400, detail="File too large. Maximum 50MB")
 
     # Parse CSV to get metadata
+# Parse file to get metadata (supports CSV, Excel, JSON, Parquet)
     try:
-        df           = pd.read_csv(io.BytesIO(content))
+        filename_lower = file.filename.lower()
+        if filename_lower.endswith('.csv'):
+            df = pd.read_csv(io.BytesIO(content))
+        elif filename_lower.endswith(('.xlsx', '.xls')):
+            df = pd.read_excel(io.BytesIO(content))
+        elif filename_lower.endswith('.json'):
+            df = pd.read_json(io.BytesIO(content))
+        elif filename_lower.endswith('.parquet'):
+            df = pd.read_parquet(io.BytesIO(content))
+        elif filename_lower.endswith('.tsv'):
+            df = pd.read_csv(io.BytesIO(content), sep='\t')
+        else:
+            raise ValueError("Unsupported format")
         row_count    = len(df)
         column_count = len(df.columns)
         columns      = df.columns.tolist()
