@@ -1,27 +1,65 @@
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import DashboardLayout from '../components/DashboardLayout'
+import api from '../services/api'
 
-const stats = [
-  { label: 'Models trained',  value: '3',     sub: '+1 this week',     color: '#6366F1' },
-  { label: 'Datasets',        value: '7',     sub: '2 processing',      color: '#3B82F6' },
-  { label: 'API calls today', value: '1,240', sub: 'within limit',      color: '#8B5CF6' },
-  { label: 'Avg accuracy',    value: '94.2%', sub: 'across all models', color: '#22C55E' },
-]
+interface Stats {
+  total_models:    number
+  total_datasets:  number
+  total_deployed:  number
+  total_api_calls: number
+  avg_accuracy:    number | null
+  recent_models:   RecentModel[]
+}
 
-const recentModels = [
-  { name: 'house_prices',    accuracy: '94.2%', type: 'Regression',     date: 'Today',      status: 'success' },
-  { name: 'churn_predictor', accuracy: '91.0%', type: 'Classification', date: 'Yesterday',  status: 'success' },
-  { name: 'lead_scorer',     accuracy: '88.5%', type: 'Classification', date: '3 days ago', status: 'success' },
-]
+interface RecentModel {
+  job_id:       number
+  name:         string
+  best_model:   string
+  problem_type: string
+  accuracy:     number | null
+  created_at:   string
+}
 
 const statusColors: Record<string, string> = {
-  success:  '#22C55E',
-  training: '#3B82F6',
-  failed:   '#EF4444',
+  classification: '#6366F1',
+  regression:     '#3B82F6',
+}
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins  = Math.floor(diff / 60000)
+  const hours = Math.floor(diff / 3600000)
+  const days  = Math.floor(diff / 86400000)
+  if (days > 0)  return `${days}d ago`
+  if (hours > 0) return `${hours}h ago`
+  if (mins > 0)  return `${mins}m ago`
+  return 'just now'
 }
 
 export default function Dashboard() {
   const navigate = useNavigate()
+  const [stats, setStats]     = useState<Stats | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    api.get('/datasets/stats')
+      .then(r => setStats(r.data))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  const statCards = stats ? [
+    { label: 'Models trained',   value: stats.total_models.toString(),    sub: 'completed training runs',  color: '#6366F1' },
+    { label: 'Datasets',         value: stats.total_datasets.toString(),   sub: 'uploaded files',           color: '#3B82F6' },
+    { label: 'Deployed APIs',    value: stats.total_deployed.toString(),   sub: 'live endpoints',           color: '#8B5CF6' },
+    { label: 'Avg accuracy',     value: stats.avg_accuracy ? `${stats.avg_accuracy}%` : 'N/A', sub: 'across all models', color: '#22C55E' },
+  ] : [
+    { label: 'Models trained',   value: '—', sub: 'loading...', color: '#6366F1' },
+    { label: 'Datasets',         value: '—', sub: 'loading...', color: '#3B82F6' },
+    { label: 'Deployed APIs',    value: '—', sub: 'loading...', color: '#8B5CF6' },
+    { label: 'Avg accuracy',     value: '—', sub: 'loading...', color: '#22C55E' },
+  ]
 
   return (
     <DashboardLayout>
@@ -30,16 +68,16 @@ export default function Dashboard() {
         {/* Header */}
         <div className="mb-8">
           <h1 style={{ color: '#E5E7EB' }} className="text-2xl font-semibold mb-1">
-            Good morning, Kashish 👋
+            Dashboard
           </h1>
           <p style={{ color: '#6B7280' }} className="text-sm">
-            Here's what's happening with your models today.
+            Your ML workspace overview
           </p>
         </div>
 
         {/* Stat cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {stats.map((s, i) => (
+          {statCards.map((s, i) => (
             <div
               key={i}
               style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
@@ -59,107 +97,107 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
           {/* Recent models */}
-          <div
-            style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
-            className="lg:col-span-2 rounded-xl overflow-hidden"
-          >
-            <div
-              style={{ borderBottom: '1px solid #1F2937' }}
-              className="px-5 py-4 flex items-center justify-between"
-            >
-              <h2 style={{ color: '#E5E7EB' }} className="text-sm font-semibold">Recent models</h2>
-              <button style={{ color: '#6366F1' }} className="text-xs font-medium hover:underline">
+          <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+            className="lg:col-span-2 rounded-xl overflow-hidden">
+            <div style={{ borderBottom: '1px solid #1F2937' }}
+              className="px-5 py-4 flex items-center justify-between">
+              <h2 style={{ color: '#E5E7EB' }} className="text-sm font-semibold">
+                Recent models
+              </h2>
+              <button
+                onClick={() => navigate('/models')}
+                style={{ color: '#6366F1' }}
+                className="text-xs font-medium hover:underline"
+              >
                 View all →
               </button>
             </div>
 
-            <div>
-              {recentModels.map((m, i) => (
-                <div
-                  key={i}
-                  style={{ borderBottom: i < recentModels.length - 1 ? '1px solid #1F2937' : 'none' }}
-                  className="px-5 py-3.5 flex items-center justify-between hover:bg-white/[0.02] transition-all"
+            {loading ? (
+              <div className="px-5 py-8 text-center">
+                <p style={{ color: '#4B5563' }} className="text-sm">Loading...</p>
+              </div>
+            ) : stats?.recent_models.length === 0 ? (
+              <div className="px-5 py-8 text-center">
+                <p style={{ color: '#4B5563' }} className="text-sm">No models trained yet</p>
+                <button
+                  onClick={() => navigate('/upload')}
+                  style={{ color: '#6366F1' }}
+                  className="text-xs mt-2 hover:underline"
                 >
-                  <div className="flex items-center gap-3">
-                    <div
-                      style={{
+                  Upload your first dataset →
+                </button>
+              </div>
+            ) : (
+              <div>
+                {stats?.recent_models.map((m, i) => (
+                  <div
+                    key={i}
+                    style={{ borderBottom: i < (stats.recent_models.length - 1) ? '1px solid #1F2937' : 'none' }}
+                    className="px-5 py-3.5 flex items-center justify-between hover:bg-white/[0.02] transition-all cursor-pointer"
+                    onClick={() => navigate(`/results/${m.job_id}`)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div style={{
                         backgroundColor: 'rgba(99,102,241,0.1)',
                         border: '1px solid rgba(99,102,241,0.2)',
-                      }}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center text-sm"
-                    >
-                      ◈
+                      }} className="w-8 h-8 rounded-lg flex items-center justify-center text-sm">
+                        ◈
+                      </div>
+                      <div>
+                        <p style={{ color: '#E5E7EB' }} className="text-sm font-medium font-mono">
+                          {m.name}
+                        </p>
+                        <p style={{ color: '#4B5563' }} className="text-xs">
+                          {m.best_model} · {m.problem_type}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p style={{ color: '#E5E7EB' }} className="text-sm font-medium font-mono">
-                        {m.name}
+                    <div className="flex items-center gap-5">
+                      <div className="text-right">
+                        <p style={{ color: '#E5E7EB' }} className="text-sm font-semibold">
+                          {m.accuracy ? `${(m.accuracy * 100).toFixed(2)}%` : 'N/A'}
+                        </p>
+                        <p style={{ color: '#4B5563' }} className="text-xs">accuracy</p>
+                      </div>
+                      <p style={{ color: '#4B5563' }} className="text-xs hidden sm:block">
+                        {timeAgo(m.created_at)}
                       </p>
-                      <p style={{ color: '#4B5563' }} className="text-xs">{m.type}</p>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-5">
-                    <div className="text-right">
-                      <p style={{ color: '#E5E7EB' }} className="text-sm font-semibold">{m.accuracy}</p>
-                      <p style={{ color: '#4B5563' }} className="text-xs">accuracy</p>
-                    </div>
-                    <div
-                      style={{
-                        color: statusColors[m.status],
-                        backgroundColor: `${statusColors[m.status]}15`,
-                        border: `1px solid ${statusColors[m.status]}30`,
-                      }}
-                      className="text-xs px-2 py-0.5 rounded-full hidden sm:block"
-                    >
-                      {m.status}
-                    </div>
-                    <p style={{ color: '#4B5563' }} className="text-xs hidden sm:block w-16 text-right">
-                      {m.date}
-                    </p>
-                    <button
-                      style={{ color: '#9CA3AF', border: '1px solid #1F2937' }}
-                      className="text-xs px-3 py-1.5 rounded-lg hover:border-gray-600 hover:text-gray-300 transition-all"
-                    >
-                      View
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Quick start */}
-          <div
-            style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
-            className="rounded-xl flex flex-col overflow-hidden"
-          >
+          <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+            className="rounded-xl flex flex-col overflow-hidden">
             <div style={{ borderBottom: '1px solid #1F2937' }} className="px-5 py-4">
               <h2 style={{ color: '#E5E7EB' }} className="text-sm font-semibold">Quick start</h2>
             </div>
             <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-              <div
-                style={{
-                  background: 'linear-gradient(135deg, rgba(59,130,246,0.15), rgba(99,102,241,0.15))',
-                  border: '1px solid rgba(99,102,241,0.2)',
-                }}
-                className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-4"
-              >
+              <div style={{
+                background: 'linear-gradient(135deg, rgba(59,130,246,0.15), rgba(99,102,241,0.15))',
+                border: '1px solid rgba(99,102,241,0.2)',
+              }} className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-4">
                 📂
               </div>
               <p style={{ color: '#E5E7EB' }} className="text-sm font-medium mb-1">
                 Upload a dataset
               </p>
               <p style={{ color: '#6B7280' }} className="text-xs mb-6 leading-relaxed">
-                Drop a CSV and let AI agents train your model automatically
+                Supports CSV, Excel, JSON, Parquet. AI agents train the best model automatically.
               </p>
               <button
                 onClick={() => navigate('/upload')}
                 style={{ background: 'linear-gradient(135deg, #3B82F6, #6366F1)' }}
                 className="text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-all glow-hover w-full"
               >
-                Upload CSV
+                Upload Dataset
               </button>
               <button
+                onClick={() => navigate('/marketplace')}
                 style={{ color: '#4B5563' }}
                 className="text-xs mt-3 hover:text-gray-400 transition-all"
               >
