@@ -13,14 +13,6 @@ from app.models.job import Job
 from app.schemas.dataset import DatasetResponse, JobResponse, UploadResponse
 from app.services.storage import save_file, delete_file
 
-# Validate file type
-allowed = ('.csv', '.xlsx', '.xls', '.json', '.parquet', '.tsv')
-if not any(file.filename.lower().endswith(ext) for ext in allowed):
-    raise HTTPException(
-    status_code=400,
-    detail=f"Unsupported file type. Allowed: {', '.join(allowed)}"
-        )
-
 router = APIRouter(prefix="/datasets", tags=["Datasets"])
 
 
@@ -32,7 +24,7 @@ async def upload_dataset(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Upload a CSV dataset.
+    Upload a dataset (CSV, Excel, JSON, Parquet, TSV).
     - Validates file type and size
     - Checks plan limits
     - Reads metadata (rows, columns)
@@ -41,9 +33,13 @@ async def upload_dataset(
     - Queues training job in Celery
     """
 
-    # Validate file type
-    if not file.filename.endswith('.csv'):
-        raise HTTPException(status_code=400, detail="Only CSV files are allowed")
+    # ── Validate file type ─────────────────────────────────
+    allowed = ('.csv', '.xlsx', '.xls', '.json', '.parquet', '.tsv')
+    if not any(file.filename.lower().endswith(ext) for ext in allowed):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type. Allowed: {', '.join(allowed)}"
+        )
 
     # ── CHECK PLAN LIMITS ──────────────────────────────────
     if not current_user.is_pro:
@@ -69,8 +65,7 @@ async def upload_dataset(
     if file_size > 50 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="File too large. Maximum 50MB")
 
-    # Parse CSV to get metadata
-# Parse file to get metadata (supports CSV, Excel, JSON, Parquet)
+    # ── Parse file to get metadata ─────────────────────────
     try:
         filename_lower = file.filename.lower()
         if filename_lower.endswith('.csv'):
@@ -85,18 +80,45 @@ async def upload_dataset(
             df = pd.read_csv(io.BytesIO(content), sep='\t')
         else:
             raise ValueError("Unsupported format")
+
         row_count    = len(df)
         column_count = len(df.columns)
         columns      = df.columns.tolist()
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid CSV file")
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Could not parse file: {str(e)}"
+        )
 
-    # Validate target column exists in CSV
+    # Validate target column exists
     if target_column not in columns:
         raise HTTPException(
             status_code=400,
-            detail=f"Target column '{target_column}' not found in CSV"
+            detail=f"Target column '{target_column}' not found in file. "
+                   f"Available columns: {columns}"
         )
+
+    # ── DATASET CACHING CHECK ──────────────────────────────
+    existing_dataset = db.query(Dataset).filter(
+        Dataset.user_id   == current_user.id,
+        Dataset.name      == file.filename,
+        Dataset.file_size == file_size,
+    ).first()
+
+    if existing_dataset:
+        existing_job = db.query(Job).filter(
+            Job.dataset_id == existing_dataset.id,
+            Job.status     == "completed"
+        ).first()
+
+        if existing_job:
+            return UploadResponse(
+                job_id        = existing_job.id,
+                dataset       = existing_dataset,
+                cached        = True,
+                cache_message = "We found an existing trained model for this dataset. Returning cached results."
+            )
+    # ── END CACHE CHECK ────────────────────────────────────
 
     # Save file to disk with unique name
     await file.seek(0)
@@ -140,6 +162,83 @@ async def upload_dataset(
         job_id  = job.id,
         dataset = dataset
     )
+
+
+@router.get("/stats")
+def get_dashboard_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Real dashboard stats from database."""
+    from app.models.deployed_model import DeployedModel
+    from sqlalchemy import func
+
+    total_jobs = db.query(Job).filter(
+        Job.user_id == current_user.id,
+        Job.status  == "completed"
+    ).count()
+
+    total_datasets = db.query(Dataset).filter(
+        Dataset.user_id == current_user.id
+    ).count()
+
+    total_deployed = db.query(DeployedModel).filter(
+        DeployedModel.user_id   == current_user.id,
+        DeployedModel.is_active == True
+    ).count()
+
+    total_api_calls = db.query(
+        func.sum(DeployedModel.call_count)
+    ).filter(
+        DeployedModel.user_id == current_user.id
+    ).scalar() or 0
+
+    # Recent completed jobs
+    recent_jobs = db.query(Job).filter(
+        Job.user_id == current_user.id,
+        Job.status  == "completed"
+    ).order_by(Job.created_at.desc()).limit(5).all()
+
+    recent_models = []
+    for job in recent_jobs:
+        if job.result:
+            dataset = db.query(Dataset).filter(
+                Dataset.id == job.dataset_id
+            ).first()
+            recent_models.append({
+                "job_id":       job.id,
+                "name":         dataset.name if dataset else f"Job #{job.id}",
+                "best_model":   job.result.get("best_model", "Unknown"),
+                "problem_type": job.result.get("problem_type", "unknown"),
+                "accuracy":     (job.result.get("best_metrics") or {}).get("accuracy") or
+                                (job.result.get("best_metrics") or {}).get("r2_score"),
+                "created_at":   job.created_at.isoformat(),
+            })
+
+    # Average accuracy
+    accuracies = []
+    for job in db.query(Job).filter(
+        Job.user_id == current_user.id,
+        Job.status  == "completed"
+    ).all():
+        if job.result and job.result.get("best_metrics"):
+            acc = job.result["best_metrics"].get("accuracy") or \
+                  job.result["best_metrics"].get("r2_score")
+            if acc:
+                accuracies.append(acc)
+
+    avg_accuracy = round(
+        sum(accuracies) / len(accuracies) * 100, 1
+    ) if accuracies else None
+
+    return {
+        "total_models":   total_jobs,
+        "total_datasets": total_datasets,
+        "total_deployed": total_deployed,
+        "total_api_calls":total_api_calls,
+        "avg_accuracy":   avg_accuracy,
+        "recent_models":  recent_models,
+    }
 
 
 @router.get("/jobs/{job_id}/results")
@@ -228,76 +327,3 @@ def delete_dataset(
     delete_file(dataset.file_path)
     db.delete(dataset)
     db.commit()
-
-@router.get("/stats")
-def get_dashboard_stats(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Real dashboard stats from database."""
-    from app.models.deployed_model import DeployedModel, APIKey
-    from sqlalchemy import func
-
-    total_jobs = db.query(Job).filter(
-        Job.user_id == current_user.id,
-        Job.status  == "completed"
-    ).count()
-
-    total_datasets = db.query(Dataset).filter(
-        Dataset.user_id == current_user.id
-    ).count()
-
-    total_deployed = db.query(DeployedModel).filter(
-        DeployedModel.user_id   == current_user.id,
-        DeployedModel.is_active == True
-    ).count()
-
-    total_api_calls = db.query(func.sum(DeployedModel.call_count)).filter(
-        DeployedModel.user_id == current_user.id
-    ).scalar() or 0
-
-    # Recent jobs with results
-    recent_jobs = db.query(Job).filter(
-        Job.user_id == current_user.id,
-        Job.status  == "completed"
-    ).order_by(Job.created_at.desc()).limit(5).all()
-
-    recent_models = []
-    for job in recent_jobs:
-        if job.result:
-            dataset = db.query(Dataset).filter(
-                Dataset.id == job.dataset_id
-            ).first()
-            recent_models.append({
-                "job_id":       job.id,
-                "name":         dataset.name if dataset else f"Job #{job.id}",
-                "best_model":   job.result.get("best_model", "Unknown"),
-                "problem_type": job.result.get("problem_type", "unknown"),
-                "accuracy":     (job.result.get("best_metrics") or {}).get("accuracy") or
-                                (job.result.get("best_metrics") or {}).get("r2_score"),
-                "created_at":   job.created_at.isoformat(),
-            })
-
-    # Average accuracy across all models
-    avg_accuracy = None
-    accuracies = []
-    for job in db.query(Job).filter(
-        Job.user_id == current_user.id,
-        Job.status  == "completed"
-    ).all():
-        if job.result and job.result.get("best_metrics"):
-            acc = job.result["best_metrics"].get("accuracy") or \
-                  job.result["best_metrics"].get("r2_score")
-            if acc:
-                accuracies.append(acc)
-    if accuracies:
-        avg_accuracy = round(sum(accuracies) / len(accuracies) * 100, 1)
-
-    return {
-        "total_models":   total_jobs,
-        "total_datasets": total_datasets,
-        "total_deployed": total_deployed,
-        "total_api_calls":total_api_calls,
-        "avg_accuracy":   avg_accuracy,
-        "recent_models":  recent_models,
-    }
