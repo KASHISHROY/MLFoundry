@@ -31,8 +31,10 @@ class JobResponse(BaseModel):
         from_attributes = True
 
 class UploadResponse(BaseModel):
-    job_id:  int
-    dataset: DatasetResponse
+    job_id:        int
+    dataset:       DatasetResponse
+    cached:        bool = False
+    cache_message: Optional[str] = None
 
     class Config:
         from_attributes = True
