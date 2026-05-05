@@ -335,7 +335,7 @@ def delete_dataset(
     db.delete(dataset)
     db.commit()
 
-@router.post("/datasets/{dataset_id}/retrain")
+@router.post("/{dataset_id}/retrain")
 def retrain_dataset(
     dataset_id: int,
     db: Session = Depends(get_db),
