@@ -14,9 +14,14 @@ interface Dataset {
   created_at:   string
 }
 
+interface DatasetGroup {
+  name:     string
+  versions: Dataset[]
+}
+
 function formatSize(bytes: number): string {
-  if (bytes < 1024)       return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024)         return `${bytes} B`
+  if (bytes < 1024 * 1024)  return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
@@ -31,9 +36,10 @@ function timeAgo(dateStr: string): string {
 
 export default function Datasets() {
   const navigate = useNavigate()
-  const [datasets, setDatasets] = useState<Dataset[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [deleting, setDeleting] = useState<number | null>(null)
+  const [datasets, setDatasets]   = useState<Dataset[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [deleting, setDeleting]   = useState<number | null>(null)
+  const [retraining, setRetraining] = useState<number | null>(null)
 
   useEffect(() => {
     api.get('/datasets/')
@@ -41,6 +47,17 @@ export default function Datasets() {
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
+
+  // Group datasets by name (same name = versions)
+  const grouped: DatasetGroup[] = []
+  const seen: Record<string, DatasetGroup> = {}
+  datasets.forEach(d => {
+    if (!seen[d.name]) {
+      seen[d.name] = { name: d.name, versions: [] }
+      grouped.push(seen[d.name])
+    }
+    seen[d.name].versions.push(d)
+  })
 
   async function handleDelete(id: number) {
     if (!confirm('Delete this dataset? This cannot be undone.')) return
@@ -55,6 +72,18 @@ export default function Datasets() {
     }
   }
 
+  async function handleRetrain(datasetId: number) {
+    setRetraining(datasetId)
+    try {
+      const res = await api.post(`/datasets/${datasetId}/retrain`)
+      navigate(`/jobs/${res.data.job_id}`)
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Retrain failed')
+    } finally {
+      setRetraining(null)
+    }
+  }
+
   return (
     <DashboardLayout>
       <div className="px-8 py-8 max-w-5xl animate-fade-in">
@@ -65,7 +94,7 @@ export default function Datasets() {
               Datasets
             </h1>
             <p style={{ color: '#6B7280' }} className="text-sm">
-              All uploaded datasets
+              All uploaded datasets · same filename = versions
             </p>
           </div>
           <button
@@ -82,7 +111,7 @@ export default function Datasets() {
             <span className="animate-spin" style={{ color: '#6366F1' }}>⟳</span>
             <p style={{ color: '#6B7280' }}>Loading datasets...</p>
           </div>
-        ) : datasets.length === 0 ? (
+        ) : grouped.length === 0 ? (
           <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
             className="rounded-2xl p-16 text-center">
             <div className="text-5xl mb-4">📊</div>
@@ -101,66 +130,111 @@ export default function Datasets() {
             </button>
           </div>
         ) : (
-          <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
-            className="rounded-xl overflow-hidden">
-            <div style={{ borderBottom: '1px solid #1F2937' }}
-              className="px-5 py-3 grid grid-cols-6 gap-4">
-              {['Name', 'Size', 'Rows', 'Columns', 'Status', 'Actions'].map((h, i) => (
-                <p key={i} style={{ color: '#4B5563' }}
-                  className="text-xs font-medium uppercase tracking-wide">
-                  {h}
-                </p>
-              ))}
-            </div>
-            {datasets.map((d, i) => (
+          <div className="space-y-4">
+            {grouped.map((group) => (
               <div
-                key={d.id}
-                style={{ borderBottom: i < datasets.length - 1 ? '1px solid #1F2937' : 'none' }}
-                className="px-5 py-4 grid grid-cols-6 gap-4 items-center hover:bg-white/[0.02] transition-all"
+                key={group.name}
+                style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+                className="rounded-xl overflow-hidden"
               >
-                <div>
-                  <p style={{ color: '#E5E7EB' }} className="text-sm font-mono">
-                    {d.name.length > 20 ? d.name.slice(0, 20) + '...' : d.name}
-                  </p>
-                  <p style={{ color: '#4B5563' }} className="text-xs">{timeAgo(d.created_at)}</p>
-                </div>
-                <p style={{ color: '#9CA3AF' }} className="text-sm">
-                  {formatSize(d.file_size)}
-                </p>
-                <p style={{ color: '#9CA3AF' }} className="text-sm">
-                  {d.row_count?.toLocaleString() || '—'}
-                </p>
-                <p style={{ color: '#9CA3AF' }} className="text-sm">
-                  {d.column_count || '—'}
-                </p>
-                <span style={{
-                  backgroundColor: d.status === 'ready'
-                    ? 'rgba(34,197,94,0.1)' : 'rgba(245,158,11,0.1)',
-                  color: d.status === 'ready' ? '#22C55E' : '#F59E0B',
-                  border: `1px solid ${d.status === 'ready'
-                    ? 'rgba(34,197,94,0.3)' : 'rgba(245,158,11,0.3)'}`,
-                  fontSize: '10px', padding: '2px 8px', borderRadius: '20px',
-                  display: 'inline-block',
-                }}>
-                  {d.status}
-                </span>
-                <div className="flex items-center gap-2">
+                {/* Group header */}
+                <div style={{ borderBottom: '1px solid #1F2937', backgroundColor: '#0D1117' }}
+                  className="px-5 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg">📊</span>
+                    <div>
+                      <p style={{ color: '#E5E7EB' }} className="text-sm font-semibold font-mono">
+                        {group.name}
+                      </p>
+                      <p style={{ color: '#4B5563' }} className="text-xs">
+                        {group.versions.length} version{group.versions.length > 1 ? 's' : ''}
+                      </p>
+                    </div>
+                  </div>
+                  {/* Retrain button — uses latest version */}
                   <button
-                    onClick={() => navigate('/upload')}
-                    style={{ color: '#9CA3AF', border: '1px solid #1F2937' }}
-                    className="text-xs px-2 py-1 rounded-lg hover:border-gray-600 transition-all"
+                    onClick={() => handleRetrain(group.versions[group.versions.length - 1].id)}
+                    disabled={retraining === group.versions[group.versions.length - 1].id}
+                    style={{
+                      background: 'linear-gradient(135deg, #3B82F6, #6366F1)',
+                      color: 'white',
+                    }}
+                    className="text-xs px-4 py-1.5 rounded-lg disabled:opacity-50 transition-all"
                   >
-                    Retrain
-                  </button>
-                  <button
-                    onClick={() => handleDelete(d.id)}
-                    disabled={deleting === d.id}
-                    style={{ color: '#EF4444', border: '1px solid rgba(239,68,68,0.2)' }}
-                    className="text-xs px-2 py-1 rounded-lg hover:border-red-500 transition-all disabled:opacity-50"
-                  >
-                    {deleting === d.id ? '...' : 'Delete'}
+                    {retraining === group.versions[group.versions.length - 1].id
+                      ? '⟳ Starting...'
+                      : '↺ Retrain'
+                    }
                   </button>
                 </div>
+
+                {/* Versions */}
+                {group.versions.map((d, i) => (
+                  <div
+                    key={d.id}
+                    style={{ borderBottom: i < group.versions.length - 1 ? '1px solid #1F2937' : 'none' }}
+                    className="px-5 py-3.5 flex items-center justify-between hover:bg-white/[0.02] transition-all"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span style={{
+                        backgroundColor: 'rgba(99,102,241,0.1)',
+                        border: '1px solid rgba(99,102,241,0.2)',
+                        color: '#A5B4FC',
+                        fontSize: '10px',
+                        padding: '2px 8px',
+                        borderRadius: '20px',
+                        fontFamily: 'JetBrains Mono, monospace',
+                      }}>
+                        v{i + 1}
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span style={{ color: '#6B7280' }} className="text-xs">
+                            {formatSize(d.file_size)}
+                          </span>
+                          {d.row_count && (
+                            <span style={{ color: '#6B7280' }} className="text-xs">
+                              · {d.row_count.toLocaleString()} rows
+                            </span>
+                          )}
+                          {d.column_count && (
+                            <span style={{ color: '#6B7280' }} className="text-xs">
+                              · {d.column_count} cols
+                            </span>
+                          )}
+                        </div>
+                        <p style={{ color: '#4B5563' }} className="text-xs">
+                          {timeAgo(d.created_at)}
+                          {d.target_column && ` · target: ${d.target_column}`}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span style={{
+                        backgroundColor: d.status === 'ready'
+                          ? 'rgba(34,197,94,0.1)' : 'rgba(245,158,11,0.1)',
+                        color: d.status === 'ready' ? '#22C55E' : '#F59E0B',
+                        border: `1px solid ${d.status === 'ready'
+                          ? 'rgba(34,197,94,0.3)' : 'rgba(245,158,11,0.3)'}`,
+                        fontSize: '10px', padding: '2px 8px', borderRadius: '20px',
+                      }}>
+                        {d.status}
+                      </span>
+                      <button
+                        onClick={() => handleDelete(d.id)}
+                        disabled={deleting === d.id}
+                        style={{
+                          color: '#EF4444',
+                          border: '1px solid rgba(239,68,68,0.2)',
+                        }}
+                        className="text-xs px-2 py-1 rounded-lg hover:border-red-500 transition-all disabled:opacity-50"
+                      >
+                        {deleting === d.id ? '...' : 'Delete'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             ))}
           </div>
