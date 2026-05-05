@@ -81,6 +81,14 @@ function getDescription(metricKey: string, value: number): string {
 function getOverallVerdict(primaryScore: number): {
   title: string; color: string; bg: string; border: string; message: string
 } {
+  // Check for likely overfitting
+  if (primaryScore >= 0.99) return {
+    title: '⚠️ Possible Overfitting',
+    color: '#F59E0B',
+    bg:    'rgba(245,158,11,0.08)',
+    border:'rgba(245,158,11,0.3)',
+    message: `${(primaryScore * 100).toFixed(2)}% accuracy is suspiciously high. This may indicate overfitting — the model memorized training data instead of learning patterns. Test on completely new real-world data before deploying.`
+  }
   if (primaryScore >= 0.95) return {
     title: '🏆 Exceptional Model', color: '#22C55E',
     bg: 'rgba(34,197,94,0.08)', border: 'rgba(34,197,94,0.3)',
