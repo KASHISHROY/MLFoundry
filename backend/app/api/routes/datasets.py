@@ -155,8 +155,15 @@ async def upload_dataset(
     db.refresh(job)
 
     # Queue training job in Celery
-    from app.workers.tasks import train_model_task
-    train_model_task.delay(job.id)
+    # Queue training job — try Celery first, fall back to direct thread
+    try:
+        from app.workers.tasks import train_model_task
+        train_model_task.delay(job.id)
+    except Exception:
+        # Celery not available (no worker in production)
+        # Run directly in background thread
+        from app.workers.tasks import run_training_direct
+        run_training_direct(job.id)
 
     return UploadResponse(
         job_id  = job.id,
