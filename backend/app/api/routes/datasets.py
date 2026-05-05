@@ -1,5 +1,6 @@
 import uuid
 import io
+import os
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
@@ -23,17 +24,7 @@ async def upload_dataset(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Upload a dataset (CSV, Excel, JSON, Parquet, TSV).
-    - Validates file type and size
-    - Checks plan limits
-    - Reads metadata (rows, columns)
-    - Saves to disk
-    - Creates dataset + job records
-    - Queues training job in Celery
-    """
-
-    # ── Validate file type ─────────────────────────────────
+    # Validate file type
     allowed = ('.csv', '.xlsx', '.xls', '.json', '.parquet', '.tsv')
     if not any(file.filename.lower().endswith(ext) for ext in allowed):
         raise HTTPException(
@@ -41,42 +32,39 @@ async def upload_dataset(
             detail=f"Unsupported file type. Allowed: {', '.join(allowed)}"
         )
 
-    # ── CHECK PLAN LIMITS ──────────────────────────────────
+    # Check plan limits
     if not current_user.is_pro:
         from app.core.config import settings
         completed_jobs = db.query(Job).filter(
             Job.user_id == current_user.id,
             Job.status  == "completed"
         ).count()
-
         if completed_jobs >= settings.FREE_PLAN_MODEL_LIMIT:
             raise HTTPException(
                 status_code=403,
                 detail=f"Free plan limit reached ({settings.FREE_PLAN_MODEL_LIMIT} models). "
                        f"Upgrade to Pro for unlimited models."
             )
-    # ── END PLAN CHECK ─────────────────────────────────────
 
     # Read content
     content   = await file.read()
     file_size = len(content)
 
-    # Validate size (max 50MB)
     if file_size > 50 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="File too large. Maximum 50MB")
 
-    # ── Parse file to get metadata ─────────────────────────
+    # Parse file
     try:
-        filename_lower = file.filename.lower()
-        if filename_lower.endswith('.csv'):
+        fname = file.filename.lower()
+        if fname.endswith('.csv'):
             df = pd.read_csv(io.BytesIO(content))
-        elif filename_lower.endswith(('.xlsx', '.xls')):
+        elif fname.endswith(('.xlsx', '.xls')):
             df = pd.read_excel(io.BytesIO(content))
-        elif filename_lower.endswith('.json'):
+        elif fname.endswith('.json'):
             df = pd.read_json(io.BytesIO(content))
-        elif filename_lower.endswith('.parquet'):
+        elif fname.endswith('.parquet'):
             df = pd.read_parquet(io.BytesIO(content))
-        elif filename_lower.endswith('.tsv'):
+        elif fname.endswith('.tsv'):
             df = pd.read_csv(io.BytesIO(content), sep='\t')
         else:
             raise ValueError("Unsupported format")
@@ -85,20 +73,15 @@ async def upload_dataset(
         column_count = len(df.columns)
         columns      = df.columns.tolist()
     except Exception as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Could not parse file: {str(e)}"
-        )
+        raise HTTPException(status_code=400, detail=f"Could not parse file: {str(e)}")
 
-    # Validate target column exists
     if target_column not in columns:
         raise HTTPException(
             status_code=400,
-            detail=f"Target column '{target_column}' not found in file. "
-                   f"Available columns: {columns}"
+            detail=f"Target column '{target_column}' not found. Available: {columns}"
         )
 
-    # ── DATASET CACHING CHECK ──────────────────────────────
+    # Dataset caching check
     existing_dataset = db.query(Dataset).filter(
         Dataset.user_id   == current_user.id,
         Dataset.name      == file.filename,
@@ -110,22 +93,20 @@ async def upload_dataset(
             Job.dataset_id == existing_dataset.id,
             Job.status     == "completed"
         ).first()
-
         if existing_job:
             return UploadResponse(
                 job_id        = existing_job.id,
                 dataset       = existing_dataset,
                 cached        = True,
-                cache_message = "We found an existing trained model for this dataset. Returning cached results."
+                cache_message = "Found existing trained model for this dataset. Showing cached results."
             )
-    # ── END CACHE CHECK ────────────────────────────────────
 
-    # Save file to disk with unique name
+    # Save file
     await file.seek(0)
     unique_filename = f"{uuid.uuid4()}_{file.filename}"
     file_path       = save_file(file, unique_filename)
 
-    # Create dataset record in PostgreSQL
+    # Create dataset
     dataset = Dataset(
         user_id       = current_user.id,
         name          = file.filename,
@@ -141,7 +122,7 @@ async def upload_dataset(
     db.commit()
     db.refresh(dataset)
 
-    # Create job record
+    # Create job
     job = Job(
         user_id    = current_user.id,
         dataset_id = dataset.id,
@@ -154,21 +135,82 @@ async def upload_dataset(
     db.commit()
     db.refresh(job)
 
-    # Queue training job in Celery
-    # Queue training job — try Celery first, fall back to direct thread
+    # Queue training
     try:
         from app.workers.tasks import train_model_task
         train_model_task.delay(job.id)
     except Exception:
-        # Celery not available (no worker in production)
-        # Run directly in background thread
         from app.workers.tasks import run_training_direct
         run_training_direct(job.id)
 
-    return UploadResponse(
-        job_id  = job.id,
-        dataset = dataset
+    return UploadResponse(job_id=job.id, dataset=dataset)
+
+
+@router.post("/{dataset_id}/retrain")
+def retrain_dataset(
+    dataset_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Retrain using existing dataset file on disk."""
+    dataset = db.query(Dataset).filter(
+        Dataset.id      == dataset_id,
+        Dataset.user_id == current_user.id
+    ).first()
+
+    if not dataset:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+
+    if not os.path.exists(dataset.file_path):
+        raise HTTPException(
+            status_code=400,
+            detail="Original file not found on disk. Please upload the dataset again."
+        )
+
+    # Check plan limits
+    if not current_user.is_pro:
+        from app.core.config import settings
+        completed_jobs = db.query(Job).filter(
+            Job.user_id == current_user.id,
+            Job.status  == "completed"
+        ).count()
+        if completed_jobs >= settings.FREE_PLAN_MODEL_LIMIT:
+            raise HTTPException(
+                status_code=403,
+                detail="Free plan limit reached. Upgrade to Pro for unlimited retraining."
+            )
+
+    # Count existing versions for this dataset
+    existing_versions = db.query(Job).filter(
+        Job.dataset_id == dataset_id
+    ).count()
+
+    # Create new job
+    job = Job(
+        user_id    = current_user.id,
+        dataset_id = dataset.id,
+        status     = "queued",
+        progress   = 0,
+        stage      = "queued",
+        logs       = [f"🔄 Retrain job started (version {existing_versions + 1})..."]
     )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    # Queue training
+    try:
+        from app.workers.tasks import train_model_task
+        train_model_task.delay(job.id)
+    except Exception:
+        from app.workers.tasks import run_training_direct
+        run_training_direct(job.id)
+
+    return {
+        "job_id":  job.id,
+        "version": existing_versions + 1,
+        "message": f"Retraining started (version {existing_versions + 1})"
+    }
 
 
 @router.get("/stats")
@@ -176,7 +218,6 @@ def get_dashboard_stats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Real dashboard stats from database."""
     from app.models.deployed_model import DeployedModel
     from sqlalchemy import func
 
@@ -200,11 +241,10 @@ def get_dashboard_stats(
         DeployedModel.user_id == current_user.id
     ).scalar() or 0
 
-    # Recent completed jobs
     recent_jobs = db.query(Job).filter(
         Job.user_id == current_user.id,
         Job.status  == "completed"
-    ).order_by(Job.created_at.desc()).limit(5).all()
+    ).order_by(Job.created_at.desc()).limit(10).all()
 
     recent_models = []
     for job in recent_jobs:
@@ -222,7 +262,6 @@ def get_dashboard_stats(
                 "created_at":   job.created_at.isoformat(),
             })
 
-    # Average accuracy
     accuracies = []
     for job in db.query(Job).filter(
         Job.user_id == current_user.id,
@@ -254,20 +293,16 @@ def get_job_results(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get full training results for a completed job."""
-    job = db.query(Job)\
-        .filter(Job.id == job_id, Job.user_id == current_user.id)\
-        .first()
-
+    job = db.query(Job).filter(
+        Job.id == job_id, Job.user_id == current_user.id
+    ).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-
     if job.status != "completed":
         raise HTTPException(
             status_code=400,
             detail=f"Job not completed yet. Status: {job.status}"
         )
-
     return job.result
 
 
@@ -277,14 +312,11 @@ def get_job_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get training job status, progress and logs."""
-    job = db.query(Job)\
-        .filter(Job.id == job_id, Job.user_id == current_user.id)\
-        .first()
-
+    job = db.query(Job).filter(
+        Job.id == job_id, Job.user_id == current_user.id
+    ).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-
     return job
 
 
@@ -293,11 +325,9 @@ def get_datasets(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get all datasets for the current user."""
-    return db.query(Dataset)\
-        .filter(Dataset.user_id == current_user.id)\
-        .order_by(Dataset.created_at.desc())\
-        .all()
+    return db.query(Dataset).filter(
+        Dataset.user_id == current_user.id
+    ).order_by(Dataset.created_at.desc()).all()
 
 
 @router.get("/{dataset_id}", response_model=DatasetResponse)
@@ -306,14 +336,11 @@ def get_dataset(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get a specific dataset."""
-    dataset = db.query(Dataset)\
-        .filter(Dataset.id == dataset_id, Dataset.user_id == current_user.id)\
-        .first()
-
+    dataset = db.query(Dataset).filter(
+        Dataset.id == dataset_id, Dataset.user_id == current_user.id
+    ).first()
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset not found")
-
     return dataset
 
 
@@ -323,81 +350,11 @@ def delete_dataset(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Delete a dataset and its file from disk."""
-    dataset = db.query(Dataset)\
-        .filter(Dataset.id == dataset_id, Dataset.user_id == current_user.id)\
-        .first()
-
+    dataset = db.query(Dataset).filter(
+        Dataset.id == dataset_id, Dataset.user_id == current_user.id
+    ).first()
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset not found")
-
     delete_file(dataset.file_path)
     db.delete(dataset)
     db.commit()
-
-@router.post("/{dataset_id}/retrain")
-def retrain_dataset(
-    dataset_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Retrain using existing dataset file — no re-upload needed."""
-
-    dataset = db.query(Dataset).filter(
-        Dataset.id      == dataset_id,
-        Dataset.user_id == current_user.id
-    ).first()
-
-    if not dataset:
-        raise HTTPException(status_code=404, detail="Dataset not found")
-
-    import os
-    if not os.path.exists(dataset.file_path):
-        raise HTTPException(
-            status_code=400,
-            detail="Original file not found on disk. Please upload again."
-        )
-
-    # Check plan limits
-    if not current_user.is_pro:
-        from app.core.config import settings
-        completed_jobs = db.query(Job).filter(
-            Job.user_id == current_user.id,
-            Job.status  == "completed"
-        ).count()
-        if completed_jobs >= settings.FREE_PLAN_MODEL_LIMIT:
-            raise HTTPException(
-                status_code=403,
-                detail=f"Free plan limit reached. Upgrade to Pro."
-            )
-
-    # Create new job (new version)
-    existing_versions = db.query(Job).filter(
-        Job.dataset_id == dataset_id
-    ).count()
-
-    job = Job(
-        user_id    = current_user.id,
-        dataset_id = dataset.id,
-        status     = "queued",
-        progress   = 0,
-        stage      = "queued",
-        logs       = [f"Retrain job created (version {existing_versions + 1})..."]
-    )
-    db.add(job)
-    db.commit()
-    db.refresh(job)
-
-    # Queue training
-    try:
-        from app.workers.tasks import train_model_task
-        train_model_task.delay(job.id)
-    except Exception:
-        from app.workers.tasks import run_training_direct
-        run_training_direct(job.id)
-
-    return {
-        "job_id":   job.id,
-        "version":  existing_versions + 1,
-        "message":  "Retraining started using existing dataset"
-    }

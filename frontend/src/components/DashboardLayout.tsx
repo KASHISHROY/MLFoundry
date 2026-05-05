@@ -3,9 +3,9 @@ import Sidebar from './Sidebar'
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-screen bg-bg">
+    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--bg)' }}>
       <Sidebar />
-      <main className="flex-1 overflow-auto">
+      <main style={{ flex: 1, overflowY: 'auto', color: 'var(--text-1)' }}>
         {children}
       </main>
     </div>

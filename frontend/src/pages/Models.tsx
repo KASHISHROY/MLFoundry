@@ -12,7 +12,7 @@ interface Model {
   created_at:   string
 }
 
-interface DeployedModel {
+interface DeployedInfo {
   id:     number
   job_id: number
 }
@@ -31,7 +31,7 @@ function timeAgo(dateStr: string): string {
 export default function Models() {
   const navigate = useNavigate()
   const [models, setModels]     = useState<Model[]>([])
-  const [deployed, setDeployed] = useState<DeployedModel[]>([])
+  const [deployed, setDeployed] = useState<DeployedInfo[]>([])
   const [loading, setLoading]   = useState(true)
 
   useEffect(() => {
@@ -40,12 +40,16 @@ export default function Models() {
       api.get('/deploy/models'),
     ]).then(([statsRes, deployRes]) => {
       setModels(statsRes.data.recent_models || [])
-      setDeployed(deployRes.data || [])
+      // deployRes.data is now array of objects with job_id
+      setDeployed(deployRes.data.map((d: any) => ({
+        id:     d.id,
+        job_id: d.job_id,
+      })))
     }).catch(() => {})
     .finally(() => setLoading(false))
   }, [])
 
-  function isDeployed(jobId: number): DeployedModel | null {
+  function getDeployedInfo(jobId: number): DeployedInfo | null {
     return deployed.find(d => d.job_id === jobId) || null
   }
 
@@ -55,10 +59,10 @@ export default function Models() {
 
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h1 style={{ color: '#E5E7EB' }} className="text-2xl font-semibold mb-1">
+            <h1 style={{ color: 'var(--text-1)' }} className="text-2xl font-semibold mb-1">
               My Models
             </h1>
-            <p style={{ color: '#6B7280' }} className="text-sm">
+            <p style={{ color: 'var(--text-3)' }} className="text-sm">
               All your trained models
             </p>
           </div>
@@ -74,16 +78,16 @@ export default function Models() {
         {loading ? (
           <div className="flex items-center gap-3 py-8">
             <span className="animate-spin" style={{ color: '#6366F1' }}>⟳</span>
-            <p style={{ color: '#6B7280' }}>Loading models...</p>
+            <p style={{ color: 'var(--text-3)' }}>Loading models...</p>
           </div>
         ) : models.length === 0 ? (
-          <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+          <div style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
             className="rounded-2xl p-16 text-center">
             <div className="text-5xl mb-4">🤖</div>
-            <h3 style={{ color: '#E5E7EB' }} className="text-lg font-semibold mb-2">
+            <h3 style={{ color: 'var(--text-1)' }} className="text-lg font-semibold mb-2">
               No models yet
             </h3>
-            <p style={{ color: '#6B7280' }} className="text-sm mb-6">
+            <p style={{ color: 'var(--text-3)' }} className="text-sm mb-6">
               Upload a dataset to train your first model
             </p>
             <button
@@ -95,25 +99,34 @@ export default function Models() {
             </button>
           </div>
         ) : (
-          <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+          <div style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
             className="rounded-xl overflow-hidden">
-            <div style={{ borderBottom: '1px solid #1F2937' }}
+            {/* Header row */}
+            <div style={{ borderBottom: '1px solid var(--border)' }}
               className="px-5 py-3 grid grid-cols-5 gap-4">
               {['Dataset', 'Algorithm', 'Type', 'Accuracy', 'Actions'].map((h, i) => (
-                <p key={i} style={{ color: '#4B5563' }}
+                <p key={i} style={{ color: 'var(--text-4)' }}
                   className="text-xs font-medium uppercase tracking-wide">
                   {h}
                 </p>
               ))}
             </div>
+
             {models.map((m, i) => {
-              const deployedModel = isDeployed(m.job_id)
+              const deployInfo = getDeployedInfo(m.job_id)
+              const isAlreadyDeployed = !!deployInfo
+
               return (
                 <div
                   key={i}
-                  style={{ borderBottom: i < models.length - 1 ? '1px solid #1F2937' : 'none' }}
-                  className="px-5 py-4 grid grid-cols-5 gap-4 items-center hover:bg-white/[0.02] transition-all"
+                  style={{
+                    borderBottom: i < models.length - 1 ? '1px solid var(--border)' : 'none',
+                  }}
+                  className="px-5 py-4 grid grid-cols-5 gap-4 items-center transition-all"
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--hover-bg)'}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'}
                 >
+                  {/* Name */}
                   <div className="flex items-center gap-3">
                     <div style={{
                       backgroundColor: 'rgba(99,102,241,0.1)',
@@ -122,36 +135,59 @@ export default function Models() {
                       ◈
                     </div>
                     <div>
-                      <p style={{ color: '#E5E7EB' }} className="text-sm font-mono">
+                      <p style={{ color: 'var(--text-1)' }} className="text-sm font-mono">
                         {m.name.length > 18 ? m.name.slice(0, 18) + '...' : m.name}
                       </p>
-                      <p style={{ color: '#4B5563' }} className="text-xs">{timeAgo(m.created_at)}</p>
+                      <p style={{ color: 'var(--text-4)' }} className="text-xs">
+                        {timeAgo(m.created_at)}
+                      </p>
                     </div>
                   </div>
-                  <p style={{ color: '#9CA3AF' }} className="text-sm">{m.best_model}</p>
+
+                  {/* Algorithm */}
+                  <p style={{ color: 'var(--text-2)' }} className="text-sm">{m.best_model}</p>
+
+                  {/* Type badge */}
                   <span style={{
                     backgroundColor: m.problem_type === 'classification'
                       ? 'rgba(99,102,241,0.1)' : 'rgba(59,130,246,0.1)',
                     color: m.problem_type === 'classification' ? '#A5B4FC' : '#93C5FD',
                     border: `1px solid ${m.problem_type === 'classification'
                       ? 'rgba(99,102,241,0.3)' : 'rgba(59,130,246,0.3)'}`,
-                    fontSize: '11px', padding: '2px 8px', borderRadius: '20px',
-                    display: 'inline-block',
+                    fontSize: '11px', padding: '2px 8px',
+                    borderRadius: '20px', display: 'inline-block',
                   }}>
                     {m.problem_type}
                   </span>
-                  <p style={{ color: '#E5E7EB' }} className="text-sm font-mono font-semibold">
+
+                  {/* Accuracy */}
+                  <p style={{ color: 'var(--text-1)' }} className="text-sm font-mono font-semibold">
                     {m.accuracy ? `${(m.accuracy * 100).toFixed(2)}%` : 'N/A'}
                   </p>
+
+                  {/* Actions */}
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => navigate(`/results/${m.job_id}`)}
-                      style={{ color: '#9CA3AF', border: '1px solid #1F2937' }}
-                      className="text-xs px-3 py-1.5 rounded-lg hover:border-gray-600 hover:text-gray-300 transition-all"
+                      style={{
+                        color: 'var(--text-2)',
+                        border: '1px solid var(--border)',
+                        backgroundColor: 'transparent',
+                      }}
+                      className="text-xs px-3 py-1.5 rounded-lg transition-all"
+                      onMouseEnter={e => {
+                        (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-2)'
+                        ;(e.currentTarget as HTMLElement).style.color = 'var(--text-1)'
+                      }}
+                      onMouseLeave={e => {
+                        (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'
+                        ;(e.currentTarget as HTMLElement).style.color = 'var(--text-2)'
+                      }}
                     >
                       Results
                     </button>
-                    {deployedModel ? (
+
+                    {isAlreadyDeployed ? (
                       <button
                         onClick={() => navigate('/apis')}
                         style={{

@@ -243,11 +243,29 @@ def list_deployed_models(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    return db.query(DeployedModel).filter(
+    models = db.query(DeployedModel).filter(
         DeployedModel.user_id   == current_user.id,
         DeployedModel.is_active == True
     ).order_by(DeployedModel.created_at.desc()).all()
 
+    # Return with job_id included
+    result = []
+    for m in models:
+        result.append({
+            "id":           m.id,
+            "job_id":       m.job_id,
+            "name":         m.name,
+            "model_name":   m.model_name,
+            "problem_type": m.problem_type,
+            "accuracy":     m.accuracy,
+            "features":     m.features,
+            "target_column":m.target_column,
+            "metrics":      m.metrics,
+            "is_active":    m.is_active,
+            "call_count":   m.call_count,
+            "created_at":   m.created_at,
+        })
+    return result
 
 # ─────────────────────────────────────────────────────────
 # GET ONE DEPLOYED MODEL
