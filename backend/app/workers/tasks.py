@@ -1,3 +1,4 @@
+import threading
 from app.workers.celery_app import celery_app
 from app.core.database import SessionLocal
 from app.models.job import Job
@@ -11,10 +12,12 @@ def update_job(db, job_id: int, **kwargs):
     db.commit()
 
 
-@celery_app.task(bind=True, name="train_model")
-def train_model_task(self, job_id: int):
+def _run_training(job_id: int):
+    """
+    Core training logic — runs the actual ML pipeline.
+    Called by both Celery task and direct background thread.
+    """
     db = SessionLocal()
-
     try:
         job     = db.query(Job).filter(Job.id == job_id).first()
         dataset = db.query(Dataset).filter(
@@ -22,7 +25,7 @@ def train_model_task(self, job_id: int):
         ).first()
 
         if not job or not dataset:
-            return {"error": "Job or dataset not found"}
+            return
 
         logs = ["🚀 Training job started..."]
 
@@ -33,7 +36,6 @@ def train_model_task(self, job_id: int):
             })
             db.commit()
 
-        # Map agent names to stage + progress
         stage_map = {
             "DataCleanerAgent":     ("cleaning",     15),
             "FeatureEngineerAgent": ("engineering",  35),
@@ -53,7 +55,6 @@ def train_model_task(self, job_id: int):
                     break
             log_and_save(message)
 
-        # Mark as running
         update_job(db, job_id,
             status="running",
             stage="loading",
@@ -62,14 +63,12 @@ def train_model_task(self, job_id: int):
             started_at=datetime.utcnow()
         )
 
-        # Run LangGraph agentic pipeline
         results = run_agentic_pipeline(
             file_path=dataset.file_path,
             target_column=dataset.target_column,
             log_callback=smart_log
         )
 
-        # Mark as complete
         update_job(db, job_id,
             status="completed",
             stage="completed",
@@ -80,9 +79,7 @@ def train_model_task(self, job_id: int):
 
         dataset.status = "ready"
         db.commit()
-
         log_and_save("🎉 Training complete!")
-        return results
 
     except Exception as e:
         db.query(Job).filter(Job.id == job_id).update({
@@ -91,7 +88,25 @@ def train_model_task(self, job_id: int):
             "error":  str(e),
         })
         db.commit()
-        raise e
 
     finally:
         db.close()
+
+
+@celery_app.task(bind=True, name="train_model")
+def train_model_task(self, job_id: int):
+    """Celery task — used when Celery worker is available."""
+    _run_training(job_id)
+
+
+def run_training_direct(job_id: int):
+    """
+    Direct execution in background thread.
+    Used when Celery is not available (production without worker).
+    """
+    thread = threading.Thread(
+        target=_run_training,
+        args=(job_id,),
+        daemon=True
+    )
+    thread.start()
