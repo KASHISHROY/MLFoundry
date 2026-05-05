@@ -334,3 +334,70 @@ def delete_dataset(
     delete_file(dataset.file_path)
     db.delete(dataset)
     db.commit()
+
+@router.post("/datasets/{dataset_id}/retrain")
+def retrain_dataset(
+    dataset_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Retrain using existing dataset file — no re-upload needed."""
+
+    dataset = db.query(Dataset).filter(
+        Dataset.id      == dataset_id,
+        Dataset.user_id == current_user.id
+    ).first()
+
+    if not dataset:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+
+    import os
+    if not os.path.exists(dataset.file_path):
+        raise HTTPException(
+            status_code=400,
+            detail="Original file not found on disk. Please upload again."
+        )
+
+    # Check plan limits
+    if not current_user.is_pro:
+        from app.core.config import settings
+        completed_jobs = db.query(Job).filter(
+            Job.user_id == current_user.id,
+            Job.status  == "completed"
+        ).count()
+        if completed_jobs >= settings.FREE_PLAN_MODEL_LIMIT:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Free plan limit reached. Upgrade to Pro."
+            )
+
+    # Create new job (new version)
+    existing_versions = db.query(Job).filter(
+        Job.dataset_id == dataset_id
+    ).count()
+
+    job = Job(
+        user_id    = current_user.id,
+        dataset_id = dataset.id,
+        status     = "queued",
+        progress   = 0,
+        stage      = "queued",
+        logs       = [f"Retrain job created (version {existing_versions + 1})..."]
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    # Queue training
+    try:
+        from app.workers.tasks import train_model_task
+        train_model_task.delay(job.id)
+    except Exception:
+        from app.workers.tasks import run_training_direct
+        run_training_direct(job.id)
+
+    return {
+        "job_id":   job.id,
+        "version":  existing_versions + 1,
+        "message":  "Retraining started using existing dataset"
+    }
