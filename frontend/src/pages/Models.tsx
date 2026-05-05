@@ -12,6 +12,11 @@ interface Model {
   created_at:   string
 }
 
+interface DeployedModel {
+  id:     number
+  job_id: number
+}
+
 function timeAgo(dateStr: string): string {
   const diff  = Date.now() - new Date(dateStr).getTime()
   const days  = Math.floor(diff / 86400000)
@@ -25,15 +30,24 @@ function timeAgo(dateStr: string): string {
 
 export default function Models() {
   const navigate = useNavigate()
-  const [models, setModels]   = useState<Model[]>([])
-  const [loading, setLoading] = useState(true)
+  const [models, setModels]     = useState<Model[]>([])
+  const [deployed, setDeployed] = useState<DeployedModel[]>([])
+  const [loading, setLoading]   = useState(true)
 
   useEffect(() => {
-    api.get('/datasets/stats')
-      .then(r => setModels(r.data.recent_models || []))
-      .catch(() => {})
-      .finally(() => setLoading(false))
+    Promise.all([
+      api.get('/datasets/stats'),
+      api.get('/deploy/models'),
+    ]).then(([statsRes, deployRes]) => {
+      setModels(statsRes.data.recent_models || [])
+      setDeployed(deployRes.data || [])
+    }).catch(() => {})
+    .finally(() => setLoading(false))
   }, [])
+
+  function isDeployed(jobId: number): DeployedModel | null {
+    return deployed.find(d => d.job_id === jobId) || null
+  }
 
   return (
     <DashboardLayout>
@@ -86,66 +100,85 @@ export default function Models() {
             <div style={{ borderBottom: '1px solid #1F2937' }}
               className="px-5 py-3 grid grid-cols-5 gap-4">
               {['Dataset', 'Algorithm', 'Type', 'Accuracy', 'Actions'].map((h, i) => (
-                <p key={i} style={{ color: '#4B5563' }} className="text-xs font-medium uppercase tracking-wide">
+                <p key={i} style={{ color: '#4B5563' }}
+                  className="text-xs font-medium uppercase tracking-wide">
                   {h}
                 </p>
               ))}
             </div>
-            {models.map((m, i) => (
-              <div
-                key={i}
-                style={{ borderBottom: i < models.length - 1 ? '1px solid #1F2937' : 'none' }}
-                className="px-5 py-4 grid grid-cols-5 gap-4 items-center hover:bg-white/[0.02] transition-all"
-              >
-                <div className="flex items-center gap-3">
-                  <div style={{
-                    backgroundColor: 'rgba(99,102,241,0.1)',
-                    border: '1px solid rgba(99,102,241,0.2)',
-                  }} className="w-8 h-8 rounded-lg flex items-center justify-center text-sm shrink-0">
-                    ◈
+            {models.map((m, i) => {
+              const deployedModel = isDeployed(m.job_id)
+              return (
+                <div
+                  key={i}
+                  style={{ borderBottom: i < models.length - 1 ? '1px solid #1F2937' : 'none' }}
+                  className="px-5 py-4 grid grid-cols-5 gap-4 items-center hover:bg-white/[0.02] transition-all"
+                >
+                  <div className="flex items-center gap-3">
+                    <div style={{
+                      backgroundColor: 'rgba(99,102,241,0.1)',
+                      border: '1px solid rgba(99,102,241,0.2)',
+                    }} className="w-8 h-8 rounded-lg flex items-center justify-center text-sm shrink-0">
+                      ◈
+                    </div>
+                    <div>
+                      <p style={{ color: '#E5E7EB' }} className="text-sm font-mono">
+                        {m.name.length > 18 ? m.name.slice(0, 18) + '...' : m.name}
+                      </p>
+                      <p style={{ color: '#4B5563' }} className="text-xs">{timeAgo(m.created_at)}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p style={{ color: '#E5E7EB' }} className="text-sm font-mono">
-                      {m.name.length > 20 ? m.name.slice(0, 20) + '...' : m.name}
-                    </p>
-                    <p style={{ color: '#4B5563' }} className="text-xs">{timeAgo(m.created_at)}</p>
+                  <p style={{ color: '#9CA3AF' }} className="text-sm">{m.best_model}</p>
+                  <span style={{
+                    backgroundColor: m.problem_type === 'classification'
+                      ? 'rgba(99,102,241,0.1)' : 'rgba(59,130,246,0.1)',
+                    color: m.problem_type === 'classification' ? '#A5B4FC' : '#93C5FD',
+                    border: `1px solid ${m.problem_type === 'classification'
+                      ? 'rgba(99,102,241,0.3)' : 'rgba(59,130,246,0.3)'}`,
+                    fontSize: '11px', padding: '2px 8px', borderRadius: '20px',
+                    display: 'inline-block',
+                  }}>
+                    {m.problem_type}
+                  </span>
+                  <p style={{ color: '#E5E7EB' }} className="text-sm font-mono font-semibold">
+                    {m.accuracy ? `${(m.accuracy * 100).toFixed(2)}%` : 'N/A'}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => navigate(`/results/${m.job_id}`)}
+                      style={{ color: '#9CA3AF', border: '1px solid #1F2937' }}
+                      className="text-xs px-3 py-1.5 rounded-lg hover:border-gray-600 hover:text-gray-300 transition-all"
+                    >
+                      Results
+                    </button>
+                    {deployedModel ? (
+                      <button
+                        onClick={() => navigate('/apis')}
+                        style={{
+                          backgroundColor: 'rgba(34,197,94,0.1)',
+                          border: '1px solid rgba(34,197,94,0.3)',
+                          color: '#22C55E',
+                        }}
+                        className="text-xs px-3 py-1.5 rounded-lg transition-all"
+                      >
+                        View API ✓
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => navigate(`/deploy/${m.job_id}`)}
+                        style={{
+                          background: 'linear-gradient(135deg, #3B82F6, #6366F1)',
+                          color: 'white',
+                        }}
+                        className="text-xs px-3 py-1.5 rounded-lg transition-all"
+                      >
+                        Deploy
+                      </button>
+                    )}
                   </div>
                 </div>
-                <p style={{ color: '#9CA3AF' }} className="text-sm">{m.best_model}</p>
-                <span style={{
-                  backgroundColor: m.problem_type === 'classification'
-                    ? 'rgba(99,102,241,0.1)' : 'rgba(59,130,246,0.1)',
-                  color: m.problem_type === 'classification' ? '#A5B4FC' : '#93C5FD',
-                  border: `1px solid ${m.problem_type === 'classification'
-                    ? 'rgba(99,102,241,0.3)' : 'rgba(59,130,246,0.3)'}`,
-                  fontSize: '11px', padding: '2px 8px', borderRadius: '20px',
-                }}>
-                  {m.problem_type}
-                </span>
-                <p style={{ color: '#E5E7EB' }} className="text-sm font-mono font-semibold">
-                  {m.accuracy ? `${(m.accuracy * 100).toFixed(2)}%` : 'N/A'}
-                </p>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => navigate(`/results/${m.job_id}`)}
-                    style={{ color: '#9CA3AF', border: '1px solid #1F2937' }}
-                    className="text-xs px-3 py-1.5 rounded-lg hover:border-gray-600 hover:text-gray-300 transition-all"
-                  >
-                    Results
-                  </button>
-                  <button
-                    onClick={() => navigate(`/deploy/${m.job_id}`)}
-                    style={{
-                      background: 'linear-gradient(135deg, #3B82F6, #6366F1)',
-                      color: 'white',
-                    }}
-                    className="text-xs px-3 py-1.5 rounded-lg transition-all"
-                  >
-                    Deploy
-                  </button>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
