@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
+import { ThemeProvider } from './context/ThemeContext'
+
 import ProtectedRoute from './components/ProtectedRoute'
 import Login       from './pages/Login'
 import Register    from './pages/Register'
@@ -17,27 +19,29 @@ import Settings    from './pages/Settings'
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login"    element={<Login />} />
-          <Route path="/register" element={<Register />} />
+    <ThemeProvider> {/* ✅ wrap entire app */}
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
 
-          <Route path="/dashboard"    element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          <Route path="/upload"       element={<ProtectedRoute><Upload /></ProtectedRoute>} />
-          <Route path="/jobs/:jobId"  element={<ProtectedRoute><Training /></ProtectedRoute>} />
-          <Route path="/results/:jobId" element={<ProtectedRoute><Results /></ProtectedRoute>} />
-          <Route path="/deploy/:jobId"  element={<ProtectedRoute><Deploy /></ProtectedRoute>} />
-          <Route path="/upgrade"      element={<ProtectedRoute><Upgrade /></ProtectedRoute>} />
-          <Route path="/models"       element={<ProtectedRoute><Models /></ProtectedRoute>} />
-          <Route path="/apis"         element={<ProtectedRoute><APIs /></ProtectedRoute>} />
-          <Route path="/marketplace"  element={<ProtectedRoute><Marketplace /></ProtectedRoute>} />
-          <Route path="/datasets"     element={<ProtectedRoute><Datasets /></ProtectedRoute>} />
-          <Route path="/settings"     element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/upload" element={<ProtectedRoute><Upload /></ProtectedRoute>} />
+            <Route path="/jobs/:jobId" element={<ProtectedRoute><Training /></ProtectedRoute>} />
+            <Route path="/results/:jobId" element={<ProtectedRoute><Results /></ProtectedRoute>} />
+            <Route path="/deploy/:jobId" element={<ProtectedRoute><Deploy /></ProtectedRoute>} />
+            <Route path="/upgrade" element={<ProtectedRoute><Upgrade /></ProtectedRoute>} />
+            <Route path="/models" element={<ProtectedRoute><Models /></ProtectedRoute>} />
+            <Route path="/apis" element={<ProtectedRoute><APIs /></ProtectedRoute>} />
+            <Route path="/marketplace" element={<ProtectedRoute><Marketplace /></ProtectedRoute>} />
+            <Route path="/datasets" element={<ProtectedRoute><Datasets /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
   )
 }
