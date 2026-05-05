@@ -1,14 +1,22 @@
 from celery import Celery
 from app.core.config import settings
 
-# Create the Celery app
-# broker = Redis (where jobs wait)
-# backend = Redis (where results are stored)
+def get_redis_url():
+    url = settings.REDIS_URL
+    if not url:
+        return "redis://localhost:6379/0"
+    # Fix SSL for Upstash (rediss://)
+    if url.startswith("rediss://") and "ssl_cert_reqs" not in url:
+        url = url + "?ssl_cert_reqs=CERT_NONE"
+    return url
+
+redis_url = get_redis_url()
+
 celery_app = Celery(
     "omniml",
-    broker=settings.REDIS_URL,
-    backend=settings.REDIS_URL,
-    include=["app.workers.tasks"]  # where our tasks live
+    broker=redis_url,
+    backend=redis_url,
+    include=["app.workers.tasks"]
 )
 
 celery_app.conf.update(
@@ -17,7 +25,13 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
-    # retry failed tasks after 5 seconds, max 3 retries
     task_acks_late=True,
     worker_prefetch_multiplier=1,
 )
+
+# SSL settings for Upstash
+if redis_url.startswith("rediss://"):
+    celery_app.conf.update(
+        broker_use_ssl={"ssl_cert_reqs": "CERT_NONE"},
+        redis_backend_use_ssl={"ssl_cert_reqs": "CERT_NONE"},
+    )
