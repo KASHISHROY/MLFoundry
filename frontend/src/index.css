@@ -2,40 +2,51 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Dark theme (default) */
+:root, [data-theme="dark"] {
+  --bg:          #0B0F17;
+  --surface:     #111827;
+  --surface-2:   #0D1117;
+  --border:      #1F2937;
+  --border-2:    #374151;
+  --text-1:      #E5E7EB;
+  --text-2:      #9CA3AF;
+  --text-3:      #6B7280;
+  --text-4:      #4B5563;
+}
+
+/* Light theme */
+[data-theme="light"] {
+  --bg:          #F8FAFC;
+  --surface:     #FFFFFF;
+  --surface-2:   #F1F5F9;
+  --border:      #E2E8F0;
+  --border-2:    #CBD5E1;
+  --text-1:      #0F172A;
+  --text-2:      #475569;
+  --text-3:      #64748B;
+  --text-4:      #94A3B8;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text-1);
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
 @layer utilities {
-  .gradient-primary {
-    background: linear-gradient(135deg, #3B82F6, #6366F1);
-  }
-
-  .gradient-text {
-    background: linear-gradient(135deg, #3B82F6, #6366F1);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  .gradient-border {
-    border: 1px solid transparent;
-    background: linear-gradient(#111827, #111827) padding-box,
-                linear-gradient(135deg, #3B82F6, #6366F1) border-box;
-  }
-
-  .glow {
-    box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
-  }
-
   .glow-hover:hover {
     box-shadow: 0 0 25px rgba(99, 102, 241, 0.35);
     transition: box-shadow 0.3s ease;
   }
-
-  .glow-blue {
-    box-shadow: 0 0 20px rgba(59, 130, 246, 0.25);
-  }
 }
 
 @layer base {
-  code, pre, .mono {
-    font-family: 'JetBrains Mono', monospace;
-  }
+  code, pre { font-family: 'JetBrains Mono', monospace; }
 }
