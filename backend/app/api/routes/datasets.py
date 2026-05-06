@@ -21,10 +21,10 @@ router = APIRouter(prefix="/datasets", tags=["Datasets"])
 async def upload_dataset(
     file: UploadFile = File(...),
     target_column: str = Form(...),
+    force_retrain: bool = Form(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Validate file type
     allowed = ('.csv', '.xlsx', '.xls', '.json', '.parquet', '.tsv')
     if not any(file.filename.lower().endswith(ext) for ext in allowed):
         raise HTTPException(
@@ -32,7 +32,6 @@ async def upload_dataset(
             detail=f"Unsupported file type. Allowed: {', '.join(allowed)}"
         )
 
-    # Check plan limits
     if not current_user.is_pro:
         from app.core.config import settings
         completed_jobs = db.query(Job).filter(
@@ -46,14 +45,12 @@ async def upload_dataset(
                        f"Upgrade to Pro for unlimited models."
             )
 
-    # Read content
     content   = await file.read()
     file_size = len(content)
 
     if file_size > 50 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="File too large. Maximum 50MB")
 
-    # Parse file
     try:
         fname = file.filename.lower()
         if fname.endswith('.csv'):
@@ -81,32 +78,33 @@ async def upload_dataset(
             detail=f"Target column '{target_column}' not found. Available: {columns}"
         )
 
-    # Dataset caching check
-    existing_dataset = db.query(Dataset).filter(
-        Dataset.user_id   == current_user.id,
-        Dataset.name      == file.filename,
-        Dataset.file_size == file_size,
-    ).first()
-
-    if existing_dataset:
-        existing_job = db.query(Job).filter(
-            Job.dataset_id == existing_dataset.id,
-            Job.status     == "completed"
+    # Cache check — must match filename, size AND target column
+    if not force_retrain:
+        existing_dataset = db.query(Dataset).filter(
+            Dataset.user_id       == current_user.id,
+            Dataset.name          == file.filename,
+            Dataset.file_size     == file_size,
+            Dataset.target_column == target_column,
         ).first()
-        if existing_job:
-            return UploadResponse(
-                job_id        = existing_job.id,
-                dataset       = existing_dataset,
-                cached        = True,
-                cache_message = "Found existing trained model for this dataset. Showing cached results."
-            )
+
+        if existing_dataset:
+            existing_job = db.query(Job).filter(
+                Job.dataset_id == existing_dataset.id,
+                Job.status     == "completed"
+            ).first()
+            if existing_job:
+                return UploadResponse(
+                    job_id        = existing_job.id,
+                    dataset       = existing_dataset,
+                    cached        = True,
+                    cache_message = "Found existing trained model for this dataset and target. Showing cached results."
+                )
 
     # Save file
     await file.seek(0)
     unique_filename = f"{uuid.uuid4()}_{file.filename}"
     file_path       = save_file(file, unique_filename)
 
-    # Create dataset
     dataset = Dataset(
         user_id       = current_user.id,
         name          = file.filename,
@@ -122,7 +120,6 @@ async def upload_dataset(
     db.commit()
     db.refresh(dataset)
 
-    # Create job
     job = Job(
         user_id    = current_user.id,
         dataset_id = dataset.id,
@@ -135,7 +132,6 @@ async def upload_dataset(
     db.commit()
     db.refresh(job)
 
-    # Queue training
     try:
         from app.workers.tasks import train_model_task
         train_model_task.delay(job.id)
@@ -161,13 +157,23 @@ def retrain_dataset(
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset not found")
 
-    if not os.path.exists(dataset.file_path):
+    # Check if file exists on disk
+    file_exists = os.path.exists(dataset.file_path)
+
+    if not file_exists:
+        # Production: file not on disk — return special error
+        # with info needed to re-upload
         raise HTTPException(
-            status_code=400,
-            detail="Original file not found on disk. Please upload the dataset again."
+            status_code=409,
+            detail={
+                "error":         "file_not_on_disk",
+                "message":       "File not found on server disk. In production, files are not persisted. Please re-upload.",
+                "dataset_name":  dataset.name,
+                "target_column": dataset.target_column,
+                "columns":       dataset.columns,
+            }
         )
 
-    # Check plan limits
     if not current_user.is_pro:
         from app.core.config import settings
         completed_jobs = db.query(Job).filter(
@@ -177,15 +183,13 @@ def retrain_dataset(
         if completed_jobs >= settings.FREE_PLAN_MODEL_LIMIT:
             raise HTTPException(
                 status_code=403,
-                detail="Free plan limit reached. Upgrade to Pro for unlimited retraining."
+                detail="Free plan limit reached. Upgrade to Pro."
             )
 
-    # Count existing versions for this dataset
     existing_versions = db.query(Job).filter(
         Job.dataset_id == dataset_id
     ).count()
 
-    # Create new job
     job = Job(
         user_id    = current_user.id,
         dataset_id = dataset.id,
@@ -198,7 +202,6 @@ def retrain_dataset(
     db.commit()
     db.refresh(job)
 
-    # Queue training
     try:
         from app.workers.tasks import train_model_task
         train_model_task.delay(job.id)
@@ -278,12 +281,12 @@ def get_dashboard_stats(
     ) if accuracies else None
 
     return {
-        "total_models":   total_jobs,
-        "total_datasets": total_datasets,
-        "total_deployed": total_deployed,
-        "total_api_calls":total_api_calls,
-        "avg_accuracy":   avg_accuracy,
-        "recent_models":  recent_models,
+        "total_models":    total_jobs,
+        "total_datasets":  total_datasets,
+        "total_deployed":  total_deployed,
+        "total_api_calls": total_api_calls,
+        "avg_accuracy":    avg_accuracy,
+        "recent_models":   recent_models,
     }
 
 
