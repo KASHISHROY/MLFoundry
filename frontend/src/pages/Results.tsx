@@ -50,14 +50,15 @@ function rateMetric(value: number, metricKey: string): { label: string; color: s
   }
   if (value >= 0.95) return { label: 'Excellent', color: '#22C55E' }
   if (value >= 0.90) return { label: 'Very Good', color: '#22C55E' }
-  if (value >= 0.80) return { label: 'Good',      color: '#6366F1' }
-  if (value >= 0.70) return { label: 'Fair',      color: '#F59E0B' }
+  if (value >= 0.80) return { label: 'Good', color: '#6366F1' }
+  if (value >= 0.70) return { label: 'Fair', color: '#F59E0B' }
   return { label: 'Needs Work', color: '#EF4444' }
 }
 
 function getDescription(metricKey: string, value: number): string {
   if (value === undefined || value === null) return 'Not available'
   const pct = (value * 100).toFixed(2)
+
   switch (metricKey) {
     case 'accuracy':
       return `Correctly predicts ${pct}% of cases. Out of 100 predictions, ${Math.round(value * 100)} will be right.`
@@ -79,53 +80,84 @@ function getDescription(metricKey: string, value: number): string {
 }
 
 function getOverallVerdict(primaryScore: number): {
-  title: string; color: string; bg: string; border: string; message: string
+  title: string
+  color: string
+  bg: string
+  border: string
+  message: string
 } {
-  // Check for likely overfitting
-  if (primaryScore >= 0.99) return {
-    title: '⚠️ Possible Overfitting',
-    color: '#F59E0B',
-    bg:    'rgba(245,158,11,0.08)',
-    border:'rgba(245,158,11,0.3)',
-    message: `${(primaryScore * 100).toFixed(2)}% accuracy is suspiciously high. This may indicate overfitting — the model memorized training data instead of learning patterns. Test on completely new real-world data before deploying.`
+  if (primaryScore >= 0.99) {
+    return {
+      title: '⚠️ Possible Overfitting',
+      color: '#F59E0B',
+      bg: 'rgba(245,158,11,0.08)',
+      border: 'rgba(245,158,11,0.3)',
+      message: `${(primaryScore * 100).toFixed(2)}% accuracy is suspiciously high. This may indicate overfitting — the model memorized training data instead of learning patterns. Test on completely new real-world data before deploying.`
+    }
   }
-  if (primaryScore >= 0.95) return {
-    title: '🏆 Exceptional Model', color: '#22C55E',
-    bg: 'rgba(34,197,94,0.08)', border: 'rgba(34,197,94,0.3)',
-    message: `${(primaryScore * 100).toFixed(2)}% — top-tier performance. Production-ready for high-stakes decisions.`
+
+  if (primaryScore >= 0.95) {
+    return {
+      title: '🏆 Exceptional Model',
+      color: '#22C55E',
+      bg: 'rgba(34,197,94,0.08)',
+      border: 'rgba(34,197,94,0.3)',
+      message: `${(primaryScore * 100).toFixed(2)}% — top-tier performance. Production-ready for high-stakes decisions.`
+    }
   }
-  if (primaryScore >= 0.90) return {
-    title: '✅ Strong Model', color: '#6366F1',
-    bg: 'rgba(99,102,241,0.08)', border: 'rgba(99,102,241,0.3)',
-    message: `${(primaryScore * 100).toFixed(2)}% is strong performance. Production-ready for most business use cases.`
+
+  if (primaryScore >= 0.90) {
+    return {
+      title: '✅ Strong Model',
+      color: '#6366F1',
+      bg: 'rgba(99,102,241,0.08)',
+      border: 'rgba(99,102,241,0.3)',
+      message: `${(primaryScore * 100).toFixed(2)}% is strong performance. Production-ready for most business use cases.`
+    }
   }
-  if (primaryScore >= 0.80) return {
-    title: '👍 Good Model', color: '#3B82F6',
-    bg: 'rgba(59,130,246,0.08)', border: 'rgba(59,130,246,0.3)',
-    message: `${(primaryScore * 100).toFixed(2)}% is solid. Works well for most applications, may benefit from more data.`
+
+  if (primaryScore >= 0.80) {
+    return {
+      title: '👍 Good Model',
+      color: '#3B82F6',
+      bg: 'rgba(59,130,246,0.08)',
+      border: 'rgba(59,130,246,0.3)',
+      message: `${(primaryScore * 100).toFixed(2)}% is solid. Works well for most applications, may benefit from more data.`
+    }
   }
-  if (primaryScore >= 0.70) return {
-    title: '⚠️ Fair Model', color: '#F59E0B',
-    bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.3)',
-    message: `${(primaryScore * 100).toFixed(2)}% is acceptable but has room for improvement. Consider adding more data or features.`
+
+  if (primaryScore >= 0.70) {
+    return {
+      title: '⚠️ Fair Model',
+      color: '#F59E0B',
+      bg: 'rgba(245,158,11,0.08)',
+      border: 'rgba(245,158,11,0.3)',
+      message: `${(primaryScore * 100).toFixed(2)}% is acceptable but has room for improvement. Consider adding more data or features.`
+    }
   }
+
   return {
-    title: '❌ Needs Improvement', color: '#EF4444',
-    bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.3)',
+    title: '❌ Needs Improvement',
+    color: '#EF4444',
+    bg: 'rgba(239,68,68,0.08)',
+    border: 'rgba(239,68,68,0.3)',
     message: `${(primaryScore * 100).toFixed(2)}% suggests the model is struggling. Try more data or check your target column.`
   }
 }
 
 export default function Results() {
-  const { jobId }  = useParams()
-  const navigate   = useNavigate()
-  const [results, setResults]           = useState<Results | null>(null)
-  const [loading, setLoading]           = useState(true)
-  const [error, setError]               = useState('')
+  const { jobId } = useParams()
+  const navigate = useNavigate()
+
+  const [results, setResults] = useState<Results | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [expandedModel, setExpandedModel] = useState<number | null>(null)
+  const [isDeployed, setIsDeployed] = useState(false)
 
   useEffect(() => {
     if (!jobId) return
+
     api.get(`/datasets/jobs/${jobId}/results`)
       .then(r => {
         setResults(r.data)
@@ -134,45 +166,65 @@ export default function Results() {
       .finally(() => setLoading(false))
   }, [jobId])
 
-  if (loading) return (
-    <DashboardLayout>
-      <div className="px-8 py-8 flex items-center gap-3">
-        <span className="animate-spin text-xl" style={{ color: '#6366F1' }}>⟳</span>
-        <p style={{ color: '#9CA3AF' }}>Loading results...</p>
-      </div>
-    </DashboardLayout>
-  )
+  useEffect(() => {
+    if (!jobId) return
 
-  if (error || !results) return (
-    <DashboardLayout>
-      <div className="px-8 py-8">
-        <p style={{ color: '#EF4444' }}>{error || 'No results found'}</p>
-      </div>
-    </DashboardLayout>
-  )
+    api.get('/deploy/models')
+      .then(r => {
+        const found = r.data.find((m: any) => m.job_id === parseInt(jobId))
+        if (found) setIsDeployed(true)
+      })
+      .catch(() => {})
+  }, [jobId])
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="px-8 py-8 flex items-center gap-3">
+          <span className="animate-spin text-xl" style={{ color: '#6366F1' }}>⟳</span>
+          <p style={{ color: '#9CA3AF' }}>Loading results...</p>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  if (error || !results) {
+    return (
+      <DashboardLayout>
+        <div className="px-8 py-8">
+          <p style={{ color: '#EF4444' }}>{error || 'No results found'}</p>
+        </div>
+      </DashboardLayout>
+    )
+  }
 
   const isClassification = results.problem_type === 'classification'
-  const primaryScore     = isClassification
+
+  const primaryScore = isClassification
     ? (results.best_metrics?.accuracy ?? 0)
     : (results.best_metrics?.r2_score ?? 0)
-  const primaryLabel     = isClassification ? 'Accuracy' : 'R² Score'
-  const maxImportance    = Math.max(...(results.feature_importance?.map(f => f.importance) ?? [1]))
-  const maxShap          = results.shap_summary?.length > 0
+
+  const primaryLabel = isClassification ? 'Accuracy' : 'R² Score'
+
+  const maxImportance = Math.max(...(results.feature_importance?.map(f => f.importance) ?? [1]))
+
+  const maxShap = results.shap_summary?.length > 0
     ? Math.abs(results.shap_summary[0].mean_shap)
     : 1
-  const verdict          = getOverallVerdict(primaryScore)
+
+  const verdict = getOverallVerdict(primaryScore)
 
   const metricsList = isClassification
     ? [
-        { key: 'accuracy',  label: 'Accuracy',  value: results.best_metrics?.accuracy,  color: '#6366F1', isPercent: true },
-        { key: 'f1_score',  label: 'F1 Score',  value: results.best_metrics?.f1_score,  color: '#3B82F6', isPercent: true },
+        { key: 'accuracy', label: 'Accuracy', value: results.best_metrics?.accuracy, color: '#6366F1', isPercent: true },
+        { key: 'f1_score', label: 'F1 Score', value: results.best_metrics?.f1_score, color: '#3B82F6', isPercent: true },
         { key: 'precision', label: 'Precision', value: results.best_metrics?.precision, color: '#8B5CF6', isPercent: true },
-        { key: 'recall',    label: 'Recall',    value: results.best_metrics?.recall,    color: '#22C55E', isPercent: true },
+        { key: 'recall', label: 'Recall', value: results.best_metrics?.recall, color: '#22C55E', isPercent: true },
       ]
     : [
         { key: 'r2_score', label: 'R² Score', value: results.best_metrics?.r2_score, color: '#6366F1', isPercent: true },
-        { key: 'rmse',     label: 'RMSE',     value: results.best_metrics?.rmse,     color: '#EF4444', isPercent: false },
-        { key: 'mae',      label: 'MAE',      value: results.best_metrics?.mae,      color: '#F59E0B', isPercent: false },
+        { key: 'rmse', label: 'RMSE', value: results.best_metrics?.rmse, color: '#EF4444', isPercent: false },
+        { key: 'mae', label: 'MAE', value: results.best_metrics?.mae, color: '#F59E0B', isPercent: false },
       ]
 
   return (
@@ -189,44 +241,75 @@ export default function Results() {
             >
               ← Dashboard
             </button>
+
             <h1 style={{ color: '#E5E7EB' }} className="text-2xl font-semibold mb-1">
               Training Results
             </h1>
+
             <p style={{ color: '#6B7280' }} className="text-sm">
               Job #{jobId} · {results.problem_type} ·{' '}
               {results.dataset_size?.toLocaleString()} rows ·{' '}
               {results.all_models?.length} models trained
             </p>
           </div>
-          <div style={{
-            background: 'rgba(34,197,94,0.1)',
-            border: '1px solid rgba(34,197,94,0.3)',
-          }} className="px-4 py-2 rounded-xl flex items-center gap-2">
-            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#22C55E' }} />
-            <span style={{ color: '#22C55E' }} className="text-sm font-medium">Completed</span>
+
+          <div
+            style={{
+              background: 'rgba(34,197,94,0.1)',
+              border: '1px solid rgba(34,197,94,0.3)',
+            }}
+            className="px-4 py-2 rounded-xl flex items-center gap-2"
+          >
+            <div
+              style={{
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                backgroundColor: '#22C55E'
+              }}
+            />
+            <span style={{ color: '#22C55E' }} className="text-sm font-medium">
+              Completed
+            </span>
           </div>
         </div>
 
         {/* Verdict card */}
-        <div style={{ backgroundColor: verdict.bg, border: `1px solid ${verdict.border}` }}
-          className="rounded-2xl p-5 mb-6">
+        <div
+          style={{
+            backgroundColor: verdict.bg,
+            border: `1px solid ${verdict.border}`
+          }}
+          className="rounded-2xl p-5 mb-6"
+        >
           <div className="flex items-start justify-between flex-wrap gap-4">
             <div>
               <h2 style={{ color: verdict.color }} className="text-lg font-semibold mb-1">
                 {verdict.title}
               </h2>
+
               <p style={{ color: '#9CA3AF' }} className="text-sm leading-relaxed max-w-2xl">
                 {verdict.message}
               </p>
             </div>
+
             <div className="text-right">
               <p style={{ color: '#6B7280' }} className="text-xs uppercase tracking-widest mb-1">
                 {primaryLabel}
               </p>
-              <p style={{ color: verdict.color, fontSize: '40px', fontWeight: '700', lineHeight: 1 }}
-                className="font-mono">
+
+              <p
+                style={{
+                  color: verdict.color,
+                  fontSize: '40px',
+                  fontWeight: '700',
+                  lineHeight: 1
+                }}
+                className="font-mono"
+              >
                 {(primaryScore * 100).toFixed(2)}%
               </p>
+
               <p style={{ color: verdict.color }} className="text-xs font-medium mt-1">
                 {rateMetric(primaryScore, isClassification ? 'accuracy' : 'r2_score').label}
               </p>
@@ -235,27 +318,43 @@ export default function Results() {
         </div>
 
         {/* Best model row */}
-        <div style={{
-          background: 'linear-gradient(135deg, rgba(59,130,246,0.08), rgba(99,102,241,0.08))',
-          border: '1px solid rgba(99,102,241,0.2)',
-        }} className="rounded-xl px-5 py-4 mb-6 flex items-center gap-4">
-          <div style={{
-            background: 'linear-gradient(135deg, rgba(59,130,246,0.2), rgba(99,102,241,0.2))',
-            border: '1px solid rgba(99,102,241,0.3)',
-          }} className="w-12 h-12 rounded-xl flex items-center justify-center text-xl shrink-0">
+        <div
+          style={{
+            background: 'linear-gradient(135deg, rgba(59,130,246,0.08), rgba(99,102,241,0.08))',
+            border: '1px solid rgba(99,102,241,0.2)',
+          }}
+          className="rounded-xl px-5 py-4 mb-6 flex items-center gap-4"
+        >
+          <div
+            style={{
+              background: 'linear-gradient(135deg, rgba(59,130,246,0.2), rgba(99,102,241,0.2))',
+              border: '1px solid rgba(99,102,241,0.3)',
+            }}
+            className="w-12 h-12 rounded-xl flex items-center justify-center text-xl shrink-0"
+          >
             🏆
           </div>
+
           <div>
-            <p style={{ color: '#6B7280' }} className="text-xs mb-0.5">Best performing algorithm</p>
-            <p style={{ color: '#E5E7EB' }} className="text-lg font-semibold">{results.best_model}</p>
+            <p style={{ color: '#6B7280' }} className="text-xs mb-0.5">
+              Best performing algorithm
+            </p>
+            <p style={{ color: '#E5E7EB' }} className="text-lg font-semibold">
+              {results.best_model}
+            </p>
           </div>
+
           {results.all_models?.[0]?.tuned && (
-            <span style={{
-              backgroundColor: 'rgba(99,102,241,0.15)',
-              border: '1px solid rgba(99,102,241,0.3)',
-              color: '#A5B4FC', fontSize: '11px',
-              padding: '3px 10px', borderRadius: '20px',
-            }}>
+            <span
+              style={{
+                backgroundColor: 'rgba(99,102,241,0.15)',
+                border: '1px solid rgba(99,102,241,0.3)',
+                color: '#A5B4FC',
+                fontSize: '11px',
+                padding: '3px 10px',
+                borderRadius: '20px',
+              }}
+            >
               hyperparameter tuned ✓
             </span>
           )}
@@ -279,8 +378,10 @@ export default function Results() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
 
           {/* Feature Importance */}
-          <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
-            className="rounded-xl overflow-hidden">
+          <div
+            style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+            className="rounded-xl overflow-hidden"
+          >
             <div style={{ borderBottom: '1px solid #1F2937' }} className="px-5 py-4">
               <h3 style={{ color: '#E5E7EB' }} className="text-sm font-semibold mb-0.5">
                 Feature Importance
@@ -289,6 +390,7 @@ export default function Results() {
                 What matters most to the model overall
               </p>
             </div>
+
             <div className="p-5 space-y-4">
               {results.feature_importance?.slice(0, 8).map((f, i) => (
                 <div key={i}>
@@ -299,21 +401,30 @@ export default function Results() {
                           {i === 0 ? '①' : i === 1 ? '②' : '③'}
                         </span>
                       )}
-                      <span style={{ color: '#9CA3AF' }} className="text-xs font-mono">{f.feature}</span>
+
+                      <span style={{ color: '#9CA3AF' }} className="text-xs font-mono">
+                        {f.feature}
+                      </span>
                     </div>
+
                     <span style={{ color: '#6B7280' }} className="text-xs font-mono">
                       {(f.importance * 100).toFixed(2)}%
                     </span>
                   </div>
+
                   <div style={{ backgroundColor: '#1F2937' }} className="w-full rounded-full h-1.5">
-                    <div style={{
-                      width: `${(f.importance / maxImportance) * 100}%`,
-                      background: i === 0
-                        ? 'linear-gradient(135deg, #3B82F6, #6366F1)'
-                        : i === 1 ? 'linear-gradient(135deg, #6366F1, #8B5CF6)'
-                        : '#374151',
-                      transition: 'width 0.8s ease',
-                    }} className="h-1.5 rounded-full" />
+                    <div
+                      style={{
+                        width: `${(f.importance / maxImportance) * 100}%`,
+                        background: i === 0
+                          ? 'linear-gradient(135deg, #3B82F6, #6366F1)'
+                          : i === 1
+                            ? 'linear-gradient(135deg, #6366F1, #8B5CF6)'
+                            : '#374151',
+                        transition: 'width 0.8s ease',
+                      }}
+                      className="h-1.5 rounded-full"
+                    />
                   </div>
                 </div>
               ))}
@@ -321,8 +432,10 @@ export default function Results() {
           </div>
 
           {/* Model Comparison */}
-          <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
-            className="rounded-xl overflow-hidden">
+          <div
+            style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+            className="rounded-xl overflow-hidden"
+          >
             <div style={{ borderBottom: '1px solid #1F2937' }} className="px-5 py-4">
               <h3 style={{ color: '#E5E7EB' }} className="text-sm font-semibold mb-0.5">
                 All Models Ranked
@@ -331,6 +444,7 @@ export default function Results() {
                 {results.all_models?.length} algorithms compared
               </p>
             </div>
+
             <div>
               {results.all_models?.map((m, i) => (
                 <div key={i}>
@@ -340,50 +454,74 @@ export default function Results() {
                     className="px-5 py-3 flex items-center justify-between hover:bg-white/[0.02] transition-all"
                   >
                     <div className="flex items-center gap-3">
-                      <span style={{
-                        color: i === 0 ? '#F59E0B' : '#4B5563',
-                        fontSize: '12px', fontWeight: '600', width: '24px',
-                      }}>
+                      <span
+                        style={{
+                          color: i === 0 ? '#F59E0B' : '#4B5563',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          width: '24px',
+                        }}
+                      >
                         {i === 0 ? '🏆' : `#${i + 1}`}
                       </span>
+
                       <div>
                         <p style={{ color: '#E5E7EB' }} className="text-sm font-medium">
                           {m.model_name}
                         </p>
+
                         {m.tuned && (
-                          <span style={{
-                            backgroundColor: 'rgba(99,102,241,0.1)',
-                            color: '#A5B4FC',
-                            border: '1px solid rgba(99,102,241,0.2)',
-                            fontSize: '9px', padding: '1px 5px', borderRadius: '20px',
-                          }}>tuned</span>
+                          <span
+                            style={{
+                              backgroundColor: 'rgba(99,102,241,0.1)',
+                              color: '#A5B4FC',
+                              border: '1px solid rgba(99,102,241,0.2)',
+                              fontSize: '9px',
+                              padding: '1px 5px',
+                              borderRadius: '20px',
+                            }}
+                          >
+                            tuned
+                          </span>
                         )}
                       </div>
                     </div>
+
                     <div className="flex items-center gap-3">
                       <div className="text-right">
-                        <p style={{ color: i === 0 ? '#A5B4FC' : '#E5E7EB' }}
-                          className="text-sm font-mono font-semibold">
+                        <p
+                          style={{ color: i === 0 ? '#A5B4FC' : '#E5E7EB' }}
+                          className="text-sm font-mono font-semibold"
+                        >
                           {(m.primary_score * 100).toFixed(2)}%
                         </p>
+
                         <p style={{ color: '#4B5563' }} className="text-xs">
                           {isClassification ? 'accuracy' : 'R²'}
                         </p>
                       </div>
+
                       <span style={{ color: '#4B5563', fontSize: '10px' }}>
                         {expandedModel === i ? '▲' : '▼'}
                       </span>
                     </div>
                   </div>
+
                   {expandedModel === i && (
-                    <div style={{ backgroundColor: '#0D1117', borderBottom: '1px solid #1F2937' }}
-                      className="px-5 py-3">
+                    <div
+                      style={{
+                        backgroundColor: '#0D1117',
+                        borderBottom: '1px solid #1F2937'
+                      }}
+                      className="px-5 py-3"
+                    >
                       <div className="grid grid-cols-2 gap-3">
                         {Object.entries(m.metrics).map(([key, val]) => (
                           <div key={key}>
                             <p style={{ color: '#4B5563' }} className="text-xs mb-0.5 capitalize">
                               {key.replace('_', ' ')}
                             </p>
+
                             <p style={{ color: '#9CA3AF' }} className="text-sm font-mono">
                               {typeof val === 'number'
                                 ? !['rmse', 'mae'].includes(key)
@@ -405,95 +543,138 @@ export default function Results() {
 
         {/* SHAP Section */}
         {results.shap_summary && results.shap_summary.length > 0 && (
-          <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
-            className="rounded-xl overflow-hidden mb-8">
+          <div
+            style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+            className="rounded-xl overflow-hidden mb-8"
+          >
             <div style={{ borderBottom: '1px solid #1F2937' }} className="px-5 py-4">
               <h3 style={{ color: '#E5E7EB' }} className="text-sm font-semibold mb-0.5">
                 SHAP Explainability
               </h3>
+
               <p style={{ color: '#4B5563' }} className="text-xs leading-relaxed">
                 Feature importance tells you WHAT matters. SHAP tells you HOW —
                 does this feature push predictions up (purple) or down (red)?
                 Per-prediction SHAP is available in the deployment tester.
               </p>
             </div>
+
             <div className="p-5 space-y-4">
               {results.shap_summary.slice(0, 8).map((s, i) => {
                 const isPositive = s.mean_shap >= 0
-                const absVal     = Math.abs(s.mean_shap)
-                const barWidth   = `${(absVal / maxShap) * 100}%`
+                const absVal = Math.abs(s.mean_shap)
+                const barWidth = `${(absVal / maxShap) * 100}%`
+
                 return (
                   <div key={i}>
                     <div className="flex items-center justify-between mb-1.5">
                       <div className="flex items-center gap-2">
-                        <span style={{
-                          color: isPositive ? '#6366F1' : '#EF4444',
-                          fontSize: '10px', fontWeight: '700', width: '12px',
-                        }}>
+                        <span
+                          style={{
+                            color: isPositive ? '#6366F1' : '#EF4444',
+                            fontSize: '10px',
+                            fontWeight: '700',
+                            width: '12px',
+                          }}
+                        >
                           {isPositive ? '+' : '−'}
                         </span>
+
                         <span style={{ color: '#9CA3AF' }} className="text-xs font-mono">
                           {s.feature}
                         </span>
                       </div>
+
                       <div className="flex items-center gap-2">
-                        <span style={{
-                          color: isPositive ? '#A5B4FC' : '#FCA5A5',
-                          fontSize: '11px', fontFamily: 'JetBrains Mono, monospace',
-                        }}>
-                          {isPositive ? '+' : ''}{s.mean_shap.toFixed(4)}
+                        <span
+                          style={{
+                            color: isPositive ? '#A5B4FC' : '#FCA5A5',
+                            fontSize: '11px',
+                            fontFamily: 'JetBrains Mono, monospace',
+                          }}
+                        >
+                          {isPositive ? '+' : ''}
+                          {s.mean_shap.toFixed(4)}
                         </span>
-                        <span style={{
-                          backgroundColor: isPositive ? 'rgba(99,102,241,0.1)' : 'rgba(239,68,68,0.1)',
-                          color: isPositive ? '#A5B4FC' : '#FCA5A5',
-                          border: `1px solid ${isPositive ? 'rgba(99,102,241,0.3)' : 'rgba(239,68,68,0.3)'}`,
-                          fontSize: '9px', padding: '1px 6px', borderRadius: '20px',
-                        }}>
+
+                        <span
+                          style={{
+                            backgroundColor: isPositive ? 'rgba(99,102,241,0.1)' : 'rgba(239,68,68,0.1)',
+                            color: isPositive ? '#A5B4FC' : '#FCA5A5',
+                            border: `1px solid ${isPositive ? 'rgba(99,102,241,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                            fontSize: '9px',
+                            padding: '1px 6px',
+                            borderRadius: '20px',
+                          }}
+                        >
                           {isPositive ? '↑ increases' : '↓ decreases'}
                         </span>
                       </div>
                     </div>
+
                     <div className="flex items-center gap-2">
                       <div style={{ width: '50%', display: 'flex', justifyContent: 'flex-end' }}>
                         {!isPositive && (
-                          <div style={{
-                            height: '6px', width: barWidth,
-                            background: 'linear-gradient(135deg, #EF4444, #DC2626)',
-                            borderRadius: '3px 0 0 3px',
-                          }} />
+                          <div
+                            style={{
+                              height: '6px',
+                              width: barWidth,
+                              background: 'linear-gradient(135deg, #EF4444, #DC2626)',
+                              borderRadius: '3px 0 0 3px',
+                            }}
+                          />
                         )}
                       </div>
+
                       <div style={{ width: '1px', height: '12px', backgroundColor: '#374151' }} />
+
                       <div style={{ width: '50%' }}>
                         {isPositive && (
-                          <div style={{
-                            height: '6px', width: barWidth,
-                            background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
-                            borderRadius: '0 3px 3px 0',
-                          }} />
+                          <div
+                            style={{
+                              height: '6px',
+                              width: barWidth,
+                              background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
+                              borderRadius: '0 3px 3px 0',
+                            }}
+                          />
                         )}
                       </div>
                     </div>
                   </div>
                 )
               })}
-              <div className="flex items-center gap-6 mt-4 pt-4"
-                style={{ borderTop: '1px solid #1F2937' }}>
+
+              <div
+                className="flex items-center gap-6 mt-4 pt-4"
+                style={{ borderTop: '1px solid #1F2937' }}
+              >
                 <div className="flex items-center gap-2">
-                  <div style={{
-                    width: '24px', height: '6px',
-                    background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
-                    borderRadius: '3px',
-                  }} />
-                  <span style={{ color: '#6B7280' }} className="text-xs">Pushes prediction higher</span>
+                  <div
+                    style={{
+                      width: '24px',
+                      height: '6px',
+                      background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
+                      borderRadius: '3px',
+                    }}
+                  />
+                  <span style={{ color: '#6B7280' }} className="text-xs">
+                    Pushes prediction higher
+                  </span>
                 </div>
+
                 <div className="flex items-center gap-2">
-                  <div style={{
-                    width: '24px', height: '6px',
-                    background: 'linear-gradient(135deg, #EF4444, #DC2626)',
-                    borderRadius: '3px',
-                  }} />
-                  <span style={{ color: '#6B7280' }} className="text-xs">Pushes prediction lower</span>
+                  <div
+                    style={{
+                      width: '24px',
+                      height: '6px',
+                      background: 'linear-gradient(135deg, #EF4444, #DC2626)',
+                      borderRadius: '3px',
+                    }}
+                  />
+                  <span style={{ color: '#6B7280' }} className="text-xs">
+                    Pushes prediction lower
+                  </span>
                 </div>
               </div>
             </div>
@@ -501,19 +682,24 @@ export default function Results() {
         )}
 
         {/* Plain English Explanation */}
-        <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
-          className="rounded-xl p-6 mb-6">
+        <div
+          style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+          className="rounded-xl p-6 mb-6"
+        >
           <h3 style={{ color: '#E5E7EB' }} className="text-sm font-semibold mb-1">
             📖 Plain English Explanation
           </h3>
+
           <p style={{ color: '#4B5563' }} className="text-xs mb-5">
             What your results mean in simple terms
           </p>
+
           <div className="space-y-4">
             <div style={{ borderLeft: '2px solid #6366F1' }} className="pl-4">
               <p style={{ color: '#6B7280' }} className="text-xs font-medium uppercase tracking-wide mb-1">
                 What happened
               </p>
+
               <p style={{ color: '#9CA3AF' }} className="text-sm leading-relaxed">
                 Your <strong style={{ color: '#E5E7EB' }}>{results.dataset_size?.toLocaleString()}-row</strong> dataset
                 was processed through 5 AI agents — cleaning, feature engineering, training, tuning, and explanation.{' '}
@@ -521,49 +707,70 @@ export default function Results() {
                 and <strong style={{ color: '#A5B4FC' }}>{results.best_model}</strong> won.
               </p>
             </div>
+
             <div style={{ borderLeft: `2px solid ${verdict.color}` }} className="pl-4">
               <p style={{ color: '#6B7280' }} className="text-xs font-medium uppercase tracking-wide mb-1">
                 Is this result good?
               </p>
+
               <p style={{ color: '#9CA3AF' }} className="text-sm leading-relaxed">
                 <strong style={{ color: verdict.color }}>
                   {verdict.title.replace(/[🏆✅👍⚠️❌]/g, '').trim()}
-                </strong>{' '}— {verdict.message}
+                </strong>{' '}
+                — {verdict.message}
               </p>
             </div>
+
             {results.feature_importance?.length > 0 && (
               <div style={{ borderLeft: '2px solid #F59E0B' }} className="pl-4">
                 <p style={{ color: '#6B7280' }} className="text-xs font-medium uppercase tracking-wide mb-1">
                   What drives predictions
                 </p>
+
                 <p style={{ color: '#9CA3AF' }} className="text-sm leading-relaxed">
                   The most important factor is{' '}
-                  <strong style={{ color: '#E5E7EB' }}>{results.feature_importance[0]?.feature}</strong>{' '}
+                  <strong style={{ color: '#E5E7EB' }}>
+                    {results.feature_importance[0]?.feature}
+                  </strong>{' '}
                   ({(results.feature_importance[0]?.importance * 100).toFixed(2)}% importance).
+
                   {results.feature_importance[1] && (
-                    <> Followed by{' '}
-                      <strong style={{ color: '#E5E7EB' }}>{results.feature_importance[1]?.feature}</strong>
+                    <>
+                      {' '}Followed by{' '}
+                      <strong style={{ color: '#E5E7EB' }}>
+                        {results.feature_importance[1]?.feature}
+                      </strong>
+
                       {results.feature_importance[2] && (
-                        <> and{' '}
-                          <strong style={{ color: '#E5E7EB' }}>{results.feature_importance[2]?.feature}</strong>
+                        <>
+                          {' '}and{' '}
+                          <strong style={{ color: '#E5E7EB' }}>
+                            {results.feature_importance[2]?.feature}
+                          </strong>
                         </>
-                      )}.
+                      )}
+                      .
                     </>
                   )}
+
                   {' '}Focus on these if you want to improve accuracy further.
                 </p>
               </div>
             )}
+
             <div style={{ borderLeft: '2px solid #22C55E' }} className="pl-4">
               <p style={{ color: '#6B7280' }} className="text-xs font-medium uppercase tracking-wide mb-1">
                 What to do next
               </p>
+
               <p style={{ color: '#9CA3AF' }} className="text-sm leading-relaxed">
                 {primaryScore >= 0.85
-                  ? 'Your model is ready to deploy. Click "Deploy as API" to get a live endpoint.'
+                  ? isDeployed
+                    ? 'Your model is already deployed. Click "View API" to see the live endpoint.'
+                    : 'Your model is ready to deploy. Click "Deploy as API" to get a live endpoint.'
                   : primaryScore >= 0.70
-                  ? 'Your model is usable. To improve: collect more data, add features, or remove irrelevant columns.'
-                  : 'This model needs improvement before deployment. Try: more training data, better features, or check your target column.'
+                    ? 'Your model is usable. To improve: collect more data, add features, or remove irrelevant columns.'
+                    : 'This model needs improvement before deployment. Try: more training data, better features, or check your target column.'
                 }
               </p>
             </div>
@@ -572,36 +779,63 @@ export default function Results() {
 
         {/* Action buttons */}
         <div className="flex gap-4 flex-wrap">
-          <button
-            onClick={() => navigate(`/deploy/${jobId}`)}
-            style={{ background: 'linear-gradient(135deg, #3B82F6, #6366F1)' }}
-            className="text-white font-semibold px-6 py-3 rounded-xl text-sm glow-hover transition-all"
-          >
-            🚀 Deploy as API
-          </button>
+          {isDeployed ? (
+            <button
+              onClick={() => navigate('/apis')}
+              style={{
+                backgroundColor: 'rgba(34,197,94,0.1)',
+                border: '1px solid rgba(34,197,94,0.3)',
+                color: '#22C55E',
+              }}
+              className="font-semibold px-6 py-3 rounded-xl text-sm transition-all"
+            >
+              ✓ Already Deployed — View API
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate(`/deploy/${jobId}`)}
+              style={{ background: 'linear-gradient(135deg, #3B82F6, #6366F1)' }}
+              className="text-white font-semibold px-6 py-3 rounded-xl text-sm glow-hover transition-all"
+            >
+              🚀 Deploy as API
+            </button>
+          )}
+
           <button
             onClick={() => navigate(`/jobs/${jobId}`)}
-            style={{ backgroundColor: '#111827', border: '1px solid #1F2937', color: '#9CA3AF' }}
-            className="font-semibold px-6 py-3 rounded-xl text-sm hover:border-gray-600 hover:text-gray-300 transition-all"
+            style={{
+              backgroundColor: 'var(--surface)',
+              border: '1px solid var(--border)',
+              color: 'var(--text-2)'
+            }}
+            className="font-semibold px-6 py-3 rounded-xl text-sm hover:border-gray-500 transition-all"
           >
             View Training Logs
           </button>
+
           <button
             onClick={() => navigate('/upload')}
-            style={{ backgroundColor: '#111827', border: '1px solid #1F2937', color: '#9CA3AF' }}
-            className="font-semibold px-6 py-3 rounded-xl text-sm hover:border-gray-600 hover:text-gray-300 transition-all"
+            style={{
+              backgroundColor: 'var(--surface)',
+              border: '1px solid var(--border)',
+              color: 'var(--text-2)'
+            }}
+            className="font-semibold px-6 py-3 rounded-xl text-sm hover:border-gray-500 transition-all"
           >
             Upload New Dataset
           </button>
         </div>
-
       </div>
     </DashboardLayout>
   )
 }
 
 function MetricCard({
-  label, value, color, isPercent, metricKey
+  label,
+  value,
+  color,
+  isPercent,
+  metricKey
 }: {
   label:     string
   value:     number | undefined
@@ -610,6 +844,7 @@ function MetricCard({
   metricKey: string
 }) {
   let displayVal = 'N/A'
+
   if (value !== undefined && value !== null) {
     if (isPercent) {
       displayVal = `${(value * 100).toFixed(2)}%`
@@ -618,7 +853,7 @@ function MetricCard({
     }
   }
 
-  const rating      = rateMetric(value ?? 0, metricKey)
+  const rating = rateMetric(value ?? 0, metricKey)
   const description = value !== undefined ? getDescription(metricKey, value) : 'Not available'
 
   return (
@@ -628,22 +863,34 @@ function MetricCard({
     >
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <div style={{
-            width: '6px', height: '6px',
-            borderRadius: '50%', backgroundColor: color,
-          }} />
-          <p style={{ color: '#6B7280' }} className="text-xs font-medium">{label}</p>
+          <div
+            style={{
+              width: '6px',
+              height: '6px',
+              borderRadius: '50%',
+              backgroundColor: color,
+            }}
+          />
+
+          <p style={{ color: '#6B7280' }} className="text-xs font-medium">
+            {label}
+          </p>
         </div>
+
         {value !== undefined && (
           <span style={{ color: rating.color, fontSize: '10px', fontWeight: '500' }}>
             {rating.label}
           </span>
         )}
       </div>
-      <p style={{ color: value !== undefined ? '#E5E7EB' : '#4B5563' }}
-        className="text-2xl font-semibold font-mono mb-2">
+
+      <p
+        style={{ color: value !== undefined ? '#E5E7EB' : '#4B5563' }}
+        className="text-2xl font-semibold font-mono mb-2"
+      >
         {displayVal}
       </p>
+
       <p style={{ color: '#4B5563' }} className="text-xs leading-relaxed">
         {description}
       </p>

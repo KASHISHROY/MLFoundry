@@ -97,7 +97,11 @@ async def upload_dataset(
                     job_id        = existing_job.id,
                     dataset       = existing_dataset,
                     cached        = True,
-                    cache_message = "Found existing trained model for this dataset and target. Showing cached results."
+                    cache_message = (
+                    f"A trained model already exists for '{file.filename}' "
+                    f"with target '{target_column}'. Showing cached results. "
+                    f"Use Force Retrain to train again."
+                )
                 )
 
     # Save file
