@@ -22,7 +22,13 @@ export default function Marketplace() {
   const [loading, setLoading]       = useState(true)
   const [search, setSearch]         = useState('')
   const [filter, setFilter]         = useState('all')
+  const [creatingId, setCreatingId] = useState<number | null>(null)
   const [copiedId, setCopiedId]     = useState<number | null>(null)
+  const [generatedKeys, setGeneratedKeys] = useState<Record<number, {
+    key: string | null
+    preview: string
+    message: string
+  }>>({})
 
   useEffect(() => {
     api.get('/marketplace/')
@@ -31,8 +37,27 @@ export default function Marketplace() {
       .finally(() => setLoading(false))
   }, [])
 
-  function copyEndpoint(id: number, endpoint: string) {
-    navigator.clipboard.writeText(endpoint)
+  async function handleUseApi(modelId: number) {
+    setCreatingId(modelId)
+    try {
+      const res = await api.post('/marketplace/keys', { deployed_model_id: modelId })
+      setGeneratedKeys(prev => ({
+        ...prev,
+        [modelId]: {
+          key: res.data.api_key,
+          preview: res.data.api_key_preview,
+          message: res.data.message,
+        },
+      }))
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Could not create API key')
+    } finally {
+      setCreatingId(null)
+    }
+  }
+
+  function copyKey(id: number, key: string) {
+    navigator.clipboard.writeText(key)
     setCopiedId(id)
     setTimeout(() => setCopiedId(null), 2000)
   }
@@ -188,21 +213,49 @@ export default function Marketplace() {
                     </div>
                   </div>
 
-                  {/* Copy endpoint */}
+                  {generatedKeys[m.id] && (
+                    <div
+                      style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)' }}
+                      className="rounded-lg p-3 mb-3"
+                    >
+                      <p style={{ color: 'var(--text-4)' }} className="text-xs mb-1">
+                        Your API Key
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <code style={{ color: '#A5B4FC' }} className="text-xs flex-1 overflow-hidden">
+                          {generatedKeys[m.id].key || `${generatedKeys[m.id].preview} (already created)`}
+                        </code>
+                        {generatedKeys[m.id].key && (
+                          <button
+                            onClick={() => copyKey(m.id, generatedKeys[m.id].key!)}
+                            style={{
+                              backgroundColor: copiedId === m.id ? 'rgba(34,197,94,0.1)' : 'rgba(99,102,241,0.1)',
+                              border: `1px solid ${copiedId === m.id ? 'rgba(34,197,94,0.3)' : 'rgba(99,102,241,0.3)'}`,
+                              color: copiedId === m.id ? '#22C55E' : '#A5B4FC',
+                            }}
+                            className="text-xs px-3 py-1 rounded-lg"
+                          >
+                            {copiedId === m.id ? 'Copied' : 'Copy'}
+                          </button>
+                        )}
+                      </div>
+                      <p style={{ color: 'var(--text-4)' }} className="text-xs mt-2">
+                        {generatedKeys[m.id].message}
+                      </p>
+                    </div>
+                  )}
+
                   <button
-                    onClick={() => copyEndpoint(m.id, m.endpoint)}
-                    style={copiedId === m.id ? {
-                      backgroundColor: 'rgba(34,197,94,0.1)',
-                      border: '1px solid rgba(34,197,94,0.3)',
-                      color: '#22C55E',
-                    } : {
+                    onClick={() => handleUseApi(m.id)}
+                    disabled={creatingId === m.id}
+                    style={{
                       backgroundColor: 'var(--border)',
                       border: '1px solid var(--border-2)',
                       color: 'var(--text-2)',
                     }}
-                    className="w-full text-sm font-medium py-2 rounded-lg transition-all"
+                    className="w-full text-sm font-medium py-2 rounded-lg transition-all disabled:opacity-60"
                   >
-                    {copiedId === m.id ? '✓ Endpoint Copied!' : '📋 Copy API Endpoint'}
+                    {creatingId === m.id ? 'Creating key...' : 'Use API'}
                   </button>
                 </div>
               </div>

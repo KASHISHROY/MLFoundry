@@ -1,3 +1,5 @@
+import hashlib
+import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -13,10 +15,24 @@ from app.models.job import Job
 router = APIRouter(prefix="/marketplace", tags=["Marketplace"])
 
 
+def _hash_api_key(raw_key: str) -> str:
+    return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
+
+
+def _api_key_preview(raw_key_or_hash: str) -> str:
+    if raw_key_or_hash.startswith("mf_live_"):
+        return f"{raw_key_or_hash[:12]}...{raw_key_or_hash[-4:]}"
+    return "mf_live_...hidden"
+
+
 class PublishRequest(BaseModel):
     deployed_model_id: int
     description:       str
     tags:              Optional[List[str]] = []
+
+
+class MarketplaceKeyRequest(BaseModel):
+    deployed_model_id: int
 
 
 @router.post("/publish")
@@ -106,6 +122,61 @@ def list_marketplace_models(
         })
 
     return result
+
+
+@router.post("/keys")
+def create_marketplace_api_key(
+    request: MarketplaceKeyRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    model = db.query(DeployedModel).filter(
+        DeployedModel.id        == request.deployed_model_id,
+        DeployedModel.is_active == True
+    ).first()
+
+    if not model:
+        raise HTTPException(status_code=404, detail="Marketplace model not found")
+
+    existing_key = db.query(APIKey).filter(
+        APIKey.user_id           == current_user.id,
+        APIKey.deployed_model_id == model.id,
+        APIKey.is_active         == True
+    ).first()
+
+    if existing_key:
+        return {
+            "deployed_model_id": model.id,
+            "model_name":        model.name,
+            "api_key":           existing_key.key if existing_key.key.startswith("mf_live_") else None,
+            "api_key_preview":   _api_key_preview(existing_key.key),
+            "endpoint":          "/deploy/v1/predict",
+            "already_existed":   True,
+            "message":           "You already have an API key for this model. Existing hashed keys cannot be shown again.",
+        }
+
+    raw_key = f"mf_live_{uuid.uuid4().hex}"
+    key_hash = _hash_api_key(raw_key)
+    api_key = APIKey(
+        user_id            = current_user.id,
+        deployed_model_id  = model.id,
+        key                = key_hash,
+        key_hash           = key_hash,
+        name               = f"Marketplace key for {model.name}",
+        is_active          = True,
+    )
+    db.add(api_key)
+    db.commit()
+
+    return {
+        "deployed_model_id": model.id,
+        "model_name":        model.name,
+        "api_key":           raw_key,
+        "api_key_preview":   _api_key_preview(raw_key),
+        "endpoint":          "/deploy/v1/predict",
+        "already_existed":   False,
+        "message":           "API key created. Save it now; it will not be shown again.",
+    }
 
 
 @router.get("/{model_id}")
