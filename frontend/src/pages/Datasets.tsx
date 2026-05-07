@@ -113,10 +113,10 @@ export default function Datasets() {
 
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h1 style={{ color: '#E5E7EB' }} className="text-2xl font-semibold mb-1">
+            <h1 style={{ color: 'var(--text-1)' }} className="text-2xl font-semibold mb-1">
               Datasets
             </h1>
-            <p style={{ color: '#6B7280' }} className="text-sm">
+            <p style={{ color: 'var(--text-3)' }} className="text-sm">
               All uploaded datasets · same filename = versions
             </p>
           </div>
@@ -133,18 +133,18 @@ export default function Datasets() {
         {loading ? (
           <div className="flex items-center gap-3">
             <span className="animate-spin" style={{ color: '#6366F1' }}>⟳</span>
-            <p style={{ color: '#6B7280' }}>Loading datasets...</p>
+            <p style={{ color: 'var(--text-3)' }}>Loading datasets...</p>
           </div>
         ) : grouped.length === 0 ? (
           <div
-            style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+            style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
             className="rounded-2xl p-16 text-center"
           >
             <div className="text-5xl mb-4">📊</div>
-            <h3 style={{ color: '#E5E7EB' }} className="text-lg font-semibold mb-2">
+            <h3 style={{ color: 'var(--text-1)' }} className="text-lg font-semibold mb-2">
               No datasets yet
             </h3>
-            <p style={{ color: '#6B7280' }} className="text-sm mb-6">
+            <p style={{ color: 'var(--text-3)' }} className="text-sm mb-6">
               Upload a CSV, Excel, or JSON file to get started
             </p>
             <button
@@ -163,20 +163,20 @@ export default function Datasets() {
               return (
                 <div
                   key={group.name}
-                  style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+                  style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
                   className="rounded-xl overflow-hidden"
                 >
                   <div
-                    style={{ borderBottom: '1px solid #1F2937', backgroundColor: '#0D1117' }}
+                    style={{ borderBottom: '1px solid var(--border)', backgroundColor: 'var(--surface-2)' }}
                     className="px-5 py-3 flex items-center justify-between"
                   >
                     <div className="flex items-center gap-3">
                       <span className="text-lg">📊</span>
                       <div>
-                        <p style={{ color: '#E5E7EB' }} className="text-sm font-semibold font-mono">
+                        <p style={{ color: 'var(--text-1)' }} className="text-sm font-semibold font-mono">
                           {group.name}
                         </p>
-                        <p style={{ color: '#4B5563' }} className="text-xs">
+                        <p style={{ color: 'var(--text-4)' }} className="text-xs">
                           {group.versions.length} version{group.versions.length > 1 ? 's' : ''}
                         </p>
                       </div>
@@ -207,7 +207,7 @@ export default function Datasets() {
                       key={d.id}
                       style={{
                         borderBottom: i < group.versions.length - 1
-                          ? '1px solid #1F2937'
+                          ? '1px solid var(--border)'
                           : 'none'
                       }}
                       className="px-5 py-3.5 flex items-center justify-between hover:bg-white/[0.02] transition-all"
@@ -229,24 +229,24 @@ export default function Datasets() {
 
                         <div>
                           <div className="flex items-center gap-2">
-                            <span style={{ color: '#6B7280' }} className="text-xs">
+                            <span style={{ color: 'var(--text-3)' }} className="text-xs">
                               {formatSize(d.file_size)}
                             </span>
 
                             {d.row_count && (
-                              <span style={{ color: '#6B7280' }} className="text-xs">
+                              <span style={{ color: 'var(--text-3)' }} className="text-xs">
                                 · {d.row_count.toLocaleString()} rows
                               </span>
                             )}
 
                             {d.column_count && (
-                              <span style={{ color: '#6B7280' }} className="text-xs">
+                              <span style={{ color: 'var(--text-3)' }} className="text-xs">
                                 · {d.column_count} cols
                               </span>
                             )}
                           </div>
 
-                          <p style={{ color: '#4B5563' }} className="text-xs">
+                          <p style={{ color: 'var(--text-4)' }} className="text-xs">
                             {timeAgo(d.created_at)}
                             {d.target_column && ` · target: ${d.target_column}`}
                           </p>

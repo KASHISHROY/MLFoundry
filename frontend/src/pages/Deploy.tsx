@@ -102,26 +102,26 @@ export default function Deploy() {
         <div className="mb-8">
           <button
             onClick={() => navigate(`/results/${jobId}`)}
-            style={{ color: '#6B7280' }}
+            style={{ color: 'var(--text-3)' }}
             className="text-sm hover:text-gray-400 mb-2 block"
           >
             ← Back to Results
           </button>
-          <h1 style={{ color: '#E5E7EB' }} className="text-2xl font-semibold mb-1">
+          <h1 style={{ color: 'var(--text-1)' }} className="text-2xl font-semibold mb-1">
             Deploy Model
           </h1>
-          <p style={{ color: '#6B7280' }} className="text-sm">
+          <p style={{ color: 'var(--text-3)' }} className="text-sm">
             Turn your trained model into a live REST API
           </p>
         </div>
 
         {!deployed ? (
-          <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+          <div style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
             className="rounded-xl p-6">
-            <h2 style={{ color: '#E5E7EB' }} className="text-sm font-semibold mb-1">
+            <h2 style={{ color: 'var(--text-1)' }} className="text-sm font-semibold mb-1">
               Name your model
             </h2>
-            <p style={{ color: '#6B7280' }} className="text-xs mb-5">
+            <p style={{ color: 'var(--text-3)' }} className="text-xs mb-5">
               Give it a descriptive name so you can identify it later
             </p>
             <input
@@ -129,7 +129,7 @@ export default function Deploy() {
               value={modelName}
               onChange={e => setModelName(e.target.value)}
               placeholder="e.g. churn-predictor-v1"
-              style={{ backgroundColor: '#0D1117', border: '1px solid #1F2937', color: '#E5E7EB' }}
+              style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
               className="w-full rounded-lg px-4 py-2.5 text-sm outline-none mb-4 font-mono"
             />
             {error && (
@@ -162,16 +162,16 @@ export default function Deploy() {
                 <p style={{ color: '#22C55E' }} className="font-semibold mb-0.5">
                   Model deployed successfully!
                 </p>
-                <p style={{ color: '#9CA3AF' }} className="text-sm">
-                  <strong style={{ color: '#E5E7EB' }}>{deployed.name}</strong> is live.
+                <p style={{ color: 'var(--text-2)' }} className="text-sm">
+                  <strong style={{ color: 'var(--text-1)' }}>{deployed.name}</strong> is live.
                 </p>
               </div>
             </div>
 
             {/* Model info */}
-            <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+            <div style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
               className="rounded-xl p-5">
-              <h3 style={{ color: '#E5E7EB' }} className="text-sm font-semibold mb-4">
+              <h3 style={{ color: 'var(--text-1)' }} className="text-sm font-semibold mb-4">
                 Model details
               </h3>
               <div className="grid grid-cols-2 gap-4">
@@ -184,23 +184,23 @@ export default function Deploy() {
                   { label: 'API calls',   value: deployed.call_count.toString() },
                 ].map((item, i) => (
                   <div key={i}>
-                    <p style={{ color: '#4B5563' }} className="text-xs mb-0.5">{item.label}</p>
-                    <p style={{ color: '#E5E7EB' }} className="text-sm font-mono">{item.value}</p>
+                    <p style={{ color: 'var(--text-4)' }} className="text-xs mb-0.5">{item.label}</p>
+                    <p style={{ color: 'var(--text-1)' }} className="text-sm font-mono">{item.value}</p>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* API Key */}
-            <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+            <div style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
               className="rounded-xl p-5">
-              <h3 style={{ color: '#E5E7EB' }} className="text-sm font-semibold mb-1">
+              <h3 style={{ color: 'var(--text-1)' }} className="text-sm font-semibold mb-1">
                 API Key
               </h3>
-              <p style={{ color: '#4B5563' }} className="text-xs mb-4">
+              <p style={{ color: 'var(--text-4)' }} className="text-xs mb-4">
                 Keep this secret. Anyone with this key can call your model.
               </p>
-              <div style={{ backgroundColor: '#0D1117', border: '1px solid #1F2937' }}
+              <div style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)' }}
                 className="rounded-lg px-4 py-3 flex items-center justify-between gap-3">
                 <span style={{ color: '#A5B4FC' }} className="text-sm font-mono flex-1 overflow-hidden">
                   {showKey ? deployed.api_key : '•'.repeat(40)}
@@ -208,7 +208,7 @@ export default function Deploy() {
                 <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => setShowKey(!showKey)}
-                    style={{ color: '#6B7280' }}
+                    style={{ color: 'var(--text-3)' }}
                     className="text-xs hover:text-gray-400 transition-all"
                   >
                     {showKey ? '🙈 Hide' : '👁 Show'}
@@ -229,25 +229,25 @@ export default function Deploy() {
             </div>
 
             {/* Endpoint */}
-            <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+            <div style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
               className="rounded-xl p-5">
-              <h3 style={{ color: '#E5E7EB' }} className="text-sm font-semibold mb-1">
+              <h3 style={{ color: 'var(--text-1)' }} className="text-sm font-semibold mb-1">
                 Endpoint URL
               </h3>
-              <p style={{ color: '#4B5563' }} className="text-xs mb-4">
+              <p style={{ color: 'var(--text-4)' }} className="text-xs mb-4">
                 Send POST requests to this URL with your API key
               </p>
-              <div style={{ backgroundColor: '#0D1117', border: '1px solid #1F2937' }}
+              <div style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)' }}
                 className="rounded-lg px-4 py-3 flex items-center justify-between gap-3">
-                <span style={{ color: '#9CA3AF' }} className="text-sm font-mono">
+                <span style={{ color: 'var(--text-2)' }} className="text-sm font-mono">
                   {endpoint}
                 </span>
                 <button
                   onClick={() => copyText(endpoint, setUrlCopied)}
                   style={{
-                    backgroundColor: urlCopied ? 'rgba(34,197,94,0.1)' : '#1F2937',
-                    border: `1px solid ${urlCopied ? 'rgba(34,197,94,0.3)' : '#374151'}`,
-                    color: urlCopied ? '#22C55E' : '#9CA3AF',
+                    backgroundColor: urlCopied ? 'rgba(34,197,94,0.1)' : 'var(--border)',
+                    border: `1px solid ${urlCopied ? 'rgba(34,197,94,0.3)' : 'var(--border-2)'}`,
+                    color: urlCopied ? '#22C55E' : 'var(--text-2)',
                   }}
                   className="text-xs px-3 py-1 rounded-lg shrink-0 transition-all"
                 >
@@ -257,11 +257,11 @@ export default function Deploy() {
             </div>
 
             {/* cURL Example */}
-            <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+            <div style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
               className="rounded-xl overflow-hidden">
-              <div style={{ borderBottom: '1px solid #1F2937' }}
+              <div style={{ borderBottom: '1px solid var(--border)' }}
                 className="px-5 py-3.5 flex items-center justify-between">
-                <h3 style={{ color: '#E5E7EB' }} className="text-sm font-semibold">
+                <h3 style={{ color: 'var(--text-1)' }} className="text-sm font-semibold">
                   cURL Example
                 </h3>
                 <button
@@ -277,7 +277,7 @@ export default function Deploy() {
                 </button>
               </div>
               <pre style={{
-                backgroundColor: '#0D1117', color: '#9CA3AF',
+                backgroundColor: 'var(--surface-2)', color: 'var(--text-2)',
                 padding: '16px 20px', fontSize: '12px',
                 fontFamily: 'JetBrains Mono, monospace',
                 overflowX: 'auto', margin: 0,
@@ -287,19 +287,19 @@ export default function Deploy() {
             </div>
 
             {/* Required features */}
-            <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+            <div style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
               className="rounded-xl p-5">
-              <h3 style={{ color: '#E5E7EB' }} className="text-sm font-semibold mb-1">
+              <h3 style={{ color: 'var(--text-1)' }} className="text-sm font-semibold mb-1">
                 Required input features
               </h3>
-              <p style={{ color: '#4B5563' }} className="text-xs mb-4">
+              <p style={{ color: 'var(--text-4)' }} className="text-xs mb-4">
                 Your request must include all of these fields
               </p>
               <div className="flex flex-wrap gap-2">
                 {deployed.features.map((f, i) => (
                   <span key={i} style={{
-                    backgroundColor: '#0D1117', border: '1px solid #1F2937',
-                    color: '#9CA3AF', fontSize: '11px',
+                    backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)',
+                    color: 'var(--text-2)', fontSize: '11px',
                     padding: '4px 10px', borderRadius: '6px',
                     fontFamily: 'JetBrains Mono, monospace',
                   }}>
@@ -310,13 +310,13 @@ export default function Deploy() {
             </div>
 
             {/* Live Prediction Tester */}
-            <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+            <div style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
               className="rounded-xl overflow-hidden">
-              <div style={{ borderBottom: '1px solid #1F2937' }} className="px-5 py-4">
-                <h3 style={{ color: '#E5E7EB' }} className="text-sm font-semibold mb-0.5">
+              <div style={{ borderBottom: '1px solid var(--border)' }} className="px-5 py-4">
+                <h3 style={{ color: 'var(--text-1)' }} className="text-sm font-semibold mb-0.5">
                   🧪 Live Prediction Tester
                 </h3>
-                <p style={{ color: '#4B5563' }} className="text-xs">
+                <p style={{ color: 'var(--text-4)' }} className="text-xs">
                   Test your deployed model right here
                 </p>
               </div>
@@ -324,7 +324,7 @@ export default function Deploy() {
                 <div className="grid grid-cols-2 gap-3 mb-4">
                   {deployed.features.map((feature) => (
                     <div key={feature}>
-                      <label style={{ color: '#6B7280' }} className="text-xs block mb-1 font-mono">
+                      <label style={{ color: 'var(--text-3)' }} className="text-xs block mb-1 font-mono">
                         {feature}
                       </label>
                       <input
@@ -332,7 +332,7 @@ export default function Deploy() {
                         value={predInputs[feature] || ''}
                         onChange={e => setPredInputs(prev => ({ ...prev, [feature]: e.target.value }))}
                         placeholder="enter value"
-                        style={{ backgroundColor: '#0D1117', border: '1px solid #1F2937', color: '#E5E7EB' }}
+                        style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
                         className="w-full rounded-lg px-3 py-2 text-xs font-mono outline-none"
                       />
                     </div>
@@ -360,33 +360,33 @@ export default function Deploy() {
                       background: 'linear-gradient(135deg, rgba(59,130,246,0.1), rgba(99,102,241,0.1))',
                       border: '1px solid rgba(99,102,241,0.3)',
                     }} className="rounded-xl p-4">
-                      <p style={{ color: '#6B7280' }} className="text-xs mb-1">Prediction</p>
+                      <p style={{ color: 'var(--text-3)' }} className="text-xs mb-1">Prediction</p>
                       <p style={{ color: '#A5B4FC' }} className="text-3xl font-bold font-mono">
                         {predResult.prediction_label || predResult.prediction?.toFixed(2)}
                       </p>
                       {predResult.probability && (
-                        <p style={{ color: '#6B7280' }} className="text-xs mt-1">
+                        <p style={{ color: 'var(--text-3)' }} className="text-xs mt-1">
                           Confidence: {(predResult.probability * 100).toFixed(1)}%
                         </p>
                       )}
                     </div>
 
                     {/* Plain English */}
-                    <div style={{ backgroundColor: '#0D1117', border: '1px solid #1F2937' }}
+                    <div style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)' }}
                       className="rounded-lg p-4">
-                      <p style={{ color: '#4B5563' }} className="text-xs mb-2 uppercase tracking-wide">
+                      <p style={{ color: 'var(--text-4)' }} className="text-xs mb-2 uppercase tracking-wide">
                         Why this prediction?
                       </p>
-                      <p style={{ color: '#9CA3AF' }} className="text-sm leading-relaxed">
+                      <p style={{ color: 'var(--text-2)' }} className="text-sm leading-relaxed">
                         {predResult.plain_english}
                       </p>
                     </div>
 
                     {/* SHAP breakdown */}
                     {predResult.shap_explanation?.length > 0 && (
-                      <div style={{ backgroundColor: '#0D1117', border: '1px solid #1F2937' }}
+                      <div style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)' }}
                         className="rounded-lg p-4">
-                        <p style={{ color: '#4B5563' }} className="text-xs mb-3 uppercase tracking-wide">
+                        <p style={{ color: 'var(--text-4)' }} className="text-xs mb-3 uppercase tracking-wide">
                           SHAP breakdown — this specific prediction
                         </p>
                         <div className="space-y-3">
@@ -401,7 +401,7 @@ export default function Deploy() {
                                     <span style={{ color: isPos ? '#6366F1' : '#EF4444', fontSize: '10px', fontWeight: '700' }}>
                                       {isPos ? '+' : '−'}
                                     </span>
-                                    <span style={{ color: '#9CA3AF' }} className="text-xs font-mono">
+                                    <span style={{ color: 'var(--text-2)' }} className="text-xs font-mono">
                                       {s.feature} = {s.value}
                                     </span>
                                   </div>
@@ -422,7 +422,7 @@ export default function Deploy() {
                                       }} />
                                     )}
                                   </div>
-                                  <div style={{ width: '1px', height: '8px', backgroundColor: '#374151' }} />
+                                  <div style={{ width: '1px', height: '8px', backgroundColor: 'var(--border-2)' }} />
                                   <div style={{ width: '50%' }}>
                                     {isPos && (
                                       <div style={{

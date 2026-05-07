@@ -10,6 +10,12 @@ interface ParsedData {
   totalRows: number
 }
 
+interface CacheResult {
+  job_id:        number
+  dataset_id:    number
+  cache_message: string
+}
+
 export default function Upload() {
   const navigate     = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -20,9 +26,7 @@ export default function Upload() {
   const [dragging, setDragging]     = useState(false)
   const [error, setError]           = useState('')
   const [uploading, setUploading]   = useState(false)
-  const [cachedMsg, setCachedMsg]   = useState('')
-  const [showCachePrompt, setShowCachePrompt] = useState(false)
-  const [cachedJobId, setCachedJobId]         = useState<number | null>(null)
+  const [cacheResult, setCacheResult] = useState<CacheResult | null>(null)
 
   const ALLOWED = ['.csv', '.xlsx', '.xls', '.json', '.parquet', '.tsv']
 
@@ -31,9 +35,7 @@ export default function Upload() {
     setFile(null)
     setParsed(null)
     setTarget('')
-    setCachedMsg('')
-    setShowCachePrompt(false)
-    setCachedJobId(null)
+    setCacheResult(null)
 
     if (!ALLOWED.some(ext => f.name.toLowerCase().endsWith(ext))) {
       setError(`Unsupported file. Allowed: ${ALLOWED.join(', ')}`)
@@ -44,13 +46,11 @@ export default function Upload() {
       return
     }
 
-    const isCSV = f.name.toLowerCase().endsWith('.csv')
-
-    if (isCSV) {
+    if (f.name.toLowerCase().endsWith('.csv')) {
       Papa.parse(f, {
         complete: (results) => {
-          const allRows  = results.data as string[][]
-          const headers  = allRows[0]
+          const allRows = results.data as string[][]
+          const headers = allRows[0]
           const dataRows = allRows.slice(1).filter(r => r.some(c => c !== ''))
           if (!headers || headers.length === 0) {
             setError('CSV appears to be empty')
@@ -68,10 +68,9 @@ export default function Upload() {
     }
   }
 
-  const onDragOver  = useCallback((e: React.DragEvent) => { e.preventDefault(); setDragging(true) }, [])
-  const onDragLeave = useCallback(() => setDragging(false), [])
-  const onDrop      = useCallback((e: React.DragEvent) => {
-    e.preventDefault(); setDragging(false)
+  const onDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setDragging(false)
     const f = e.dataTransfer.files[0]
     if (f) parseFile(f)
   }, [])
@@ -80,36 +79,49 @@ export default function Upload() {
     if (!file || !targetColumn) return
     setUploading(true)
     setError('')
-    setCachedMsg('')
-    setShowCachePrompt(false)
+    setCacheResult(null)
 
     try {
       const formData = new FormData()
       formData.append('file', file)
       formData.append('target_column', targetColumn)
-      formData.append('force_retrain', String(forceRetrain))
+      if (forceRetrain) {
+        formData.append('force_retrain', 'true')
+      }
 
       const res = await api.post('/datasets/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
 
-      if (res.data.cached) {
-        // Show banner with options
-        setCachedJobId(res.data.job_id)
-        setShowCachePrompt(true)
-        setCachedMsg(res.data.cache_message || 'Found existing model for this dataset.')
+      if (res.data.cached && !forceRetrain) {
+        // Show cache prompt
+        setCacheResult({
+          job_id:        res.data.job_id,
+          dataset_id:    res.data.dataset.id,
+          cache_message: res.data.cache_message,
+        })
         setUploading(false)
         return
       }
 
       navigate(`/jobs/${res.data.job_id}`)
+
     } catch (err: any) {
       const detail = err.response?.data?.detail || 'Upload failed'
-      if (err.response?.status === 403) {
-        setError(detail + ' Go to Upgrade page.')
-      } else {
-        setError(detail)
-      }
+      setError(detail)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function handleForceRetrain() {
+    if (!cacheResult) return
+    setUploading(true)
+    try {
+      const res = await api.post(`/datasets/${cacheResult.dataset_id}/retrain`)
+      navigate(`/jobs/${res.data.job_id}`)
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Retrain failed')
     } finally {
       setUploading(false)
     }
@@ -132,72 +144,72 @@ export default function Upload() {
             Upload Dataset
           </h1>
           <p style={{ color: 'var(--text-3)' }} className="text-sm">
-            Supports CSV, Excel, JSON, Parquet, TSV. AI agents train the best model automatically.
+            Supports CSV, Excel, JSON, Parquet, TSV — up to 50MB
           </p>
         </div>
 
-        {/* Cached model prompt */}
-        {showCachePrompt && cachedJobId && (
+        {/* Cache found prompt */}
+        {cacheResult && (
           <div style={{
-            background: 'linear-gradient(135deg, rgba(99,102,241,0.1), rgba(59,130,246,0.1))',
+            backgroundColor: 'var(--surface)',
             border: '1px solid rgba(99,102,241,0.4)',
-          }} className="rounded-xl p-5 mb-6 animate-fade-in">
-            <div className="flex items-start gap-3 mb-4">
-              <span className="text-2xl">⚡</span>
+          }} className="rounded-2xl p-6 mb-6 animate-fade-in">
+            <div className="flex items-start gap-4 mb-5">
+              <span className="text-3xl">⚡</span>
               <div>
-                <p style={{ color: '#A5B4FC' }} className="font-semibold mb-1">
-                  Existing model found for this dataset!
-                </p>
-                <p style={{ color: 'var(--text-3)' }} className="text-sm">
-                  {cachedMsg}
+                <h3 style={{ color: 'var(--text-1)' }} className="font-semibold mb-1">
+                  Existing model found!
+                </h3>
+                <p style={{ color: 'var(--text-3)' }} className="text-sm leading-relaxed">
+                  {cacheResult.cache_message}
                 </p>
               </div>
             </div>
             <div className="flex gap-3">
               <button
-                onClick={() => navigate(`/results/${cachedJobId}`)}
+                onClick={() => navigate(`/results/${cacheResult.job_id}`)}
                 style={{ background: 'linear-gradient(135deg, #3B82F6, #6366F1)' }}
-                className="text-white font-semibold px-5 py-2.5 rounded-lg text-sm flex-1"
+                className="flex-1 text-white font-semibold py-2.5 rounded-lg text-sm glow-hover"
               >
                 View Existing Results →
               </button>
               <button
-                onClick={() => handleUpload(true)}
+                onClick={handleForceRetrain}
                 disabled={uploading}
                 style={{
-                  backgroundColor: 'var(--surface)',
+                  backgroundColor: 'var(--surface-2)',
                   border: '1px solid var(--border)',
                   color: 'var(--text-2)',
                 }}
-                className="font-semibold px-5 py-2.5 rounded-lg text-sm flex-1 disabled:opacity-50"
+                className="flex-1 font-semibold py-2.5 rounded-lg text-sm disabled:opacity-50"
               >
-                {uploading ? '⟳ Retraining...' : '↺ Force Retrain'}
+                {uploading ? '⟳ Starting...' : '↺ Force Retrain'}
               </button>
             </div>
           </div>
         )}
 
         {/* Drop zone */}
-        {!showCachePrompt && (
+        {!cacheResult && (
           <>
             <div
               onClick={() => fileInputRef.current?.click()}
-              onDragOver={onDragOver}
-              onDragLeave={onDragLeave}
+              onDragOver={e => { e.preventDefault(); setDragging(true) }}
+              onDragLeave={() => setDragging(false)}
               onDrop={onDrop}
               style={{
-                backgroundColor: dragging ? 'rgba(99,102,241,0.08)' : 'var(--surface)',
-                border: `2px dashed ${dragging ? '#6366F1' : file ? '#22C55E' : 'var(--border-2)'}`,
+                backgroundColor: dragging
+                  ? 'rgba(99,102,241,0.08)' : 'var(--surface)',
+                border: `2px dashed ${dragging ? '#6366F1' : file ? '#22C55E' : 'var(--border)'}`,
                 cursor: 'pointer',
-                transition: 'all 0.2s ease',
               }}
-              className="rounded-2xl p-12 text-center mb-6"
+              className="rounded-2xl p-12 text-center mb-6 transition-all"
             >
               <input
                 ref={fileInputRef}
                 type="file"
                 accept=".csv,.xlsx,.xls,.json,.parquet,.tsv"
-                onChange={e => { if (e.target.files?.[0]) parseFile(e.target.files[0]) }}
+                onChange={e => { const f = e.target.files?.[0]; if (f) parseFile(f) }}
                 className="hidden"
               />
 
@@ -216,10 +228,10 @@ export default function Upload() {
                   </p>
                   <p style={{ color: 'var(--text-3)' }} className="text-sm">
                     {formatSize(file.size)}
-                    {parsed?.totalRows ? ` · ${parsed.totalRows.toLocaleString()} rows · ${parsed.headers.length} columns` : ''}
+                    {parsed?.totalRows ? ` · ${parsed.totalRows.toLocaleString()} rows · ${parsed.headers.length} cols` : ''}
                   </p>
                   <p style={{ color: 'var(--text-4)' }} className="text-xs mt-2">
-                    Click to choose a different file
+                    Click to choose different file
                   </p>
                 </div>
               ) : (
@@ -244,7 +256,7 @@ export default function Upload() {
                     color: '#A5B4FC', fontSize: '12px',
                     padding: '4px 12px', borderRadius: '20px',
                   }}>
-                    CSV · Excel · JSON · Parquet · TSV — up to 50MB
+                    CSV · Excel · JSON · Parquet · TSV
                   </span>
                 </div>
               )}
@@ -266,8 +278,8 @@ export default function Upload() {
                 border: '1px solid rgba(245,158,11,0.3)',
                 color: '#FCD34D',
               }} className="px-4 py-3 rounded-lg mb-6 text-sm">
-                ℹ️ No preview for {file?.name.split('.').pop()?.toUpperCase()} files.
-                Enter the exact target column name below.
+                ℹ️ Preview not available for {file?.name.split('.').pop()?.toUpperCase()} files.
+                Enter your target column name below.
               </div>
             )}
 
@@ -283,7 +295,7 @@ export default function Upload() {
                         Preview
                       </h2>
                       <span style={{ color: 'var(--text-4)' }} className="text-xs font-mono">
-                        showing 5 of {parsed.totalRows.toLocaleString()} rows
+                        {parsed.rows.length} of {parsed.totalRows.toLocaleString()} rows
                       </span>
                     </div>
                     <div className="overflow-x-auto">
@@ -302,10 +314,8 @@ export default function Upload() {
                                 {h === targetColumn && (
                                   <span style={{
                                     backgroundColor: 'rgba(99,102,241,0.2)',
-                                    color: '#A5B4FC',
-                                    border: '1px solid rgba(99,102,241,0.3)',
-                                    fontSize: '10px', padding: '1px 6px',
-                                    borderRadius: '20px', marginLeft: '8px',
+                                    color: '#A5B4FC', fontSize: '9px',
+                                    padding: '1px 5px', borderRadius: '20px', marginLeft: '6px',
                                   }}>target</span>
                                 )}
                               </th>
@@ -315,11 +325,13 @@ export default function Upload() {
                         <tbody>
                           {parsed.rows.map((row, i) => (
                             <tr key={i} style={{
-                              borderBottom: i < parsed.rows.length - 1 ? '1px solid var(--border)' : 'none'
+                              borderBottom: i < parsed.rows.length - 1
+                                ? '1px solid var(--border)' : 'none'
                             }}>
                               {row.map((cell, j) => (
                                 <td key={j} style={{
-                                  color: parsed.headers[j] === targetColumn ? '#C7D2FE' : 'var(--text-2)',
+                                  color: parsed.headers[j] === targetColumn
+                                    ? '#C7D2FE' : 'var(--text-2)',
                                   borderRight: '1px solid var(--border)',
                                   padding: '10px 16px',
                                   fontFamily: 'JetBrains Mono, monospace',
@@ -336,19 +348,19 @@ export default function Upload() {
                   </div>
                 )}
 
-                {/* Target column */}
+                {/* Target selector */}
                 <div style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
                   className="rounded-xl p-5">
                   <h2 style={{ color: 'var(--text-1)' }} className="text-sm font-semibold mb-1">
                     Target column
                   </h2>
                   <p style={{ color: 'var(--text-3)' }} className="text-xs mb-4">
-                    Which column do you want the model to predict?
+                    Which column do you want to predict?
                   </p>
 
-                  {!isNonCSV && parsed && parsed.headers.length > 0 ? (
+                  {!isNonCSV && parsed?.headers.length ? (
                     <div className="flex flex-wrap gap-2">
-                      {parsed.headers.map((col) => (
+                      {parsed.headers.map(col => (
                         <button
                           key={col}
                           onClick={() => setTarget(col)}
@@ -392,7 +404,7 @@ export default function Upload() {
                   {uploading ? (
                     <span className="flex items-center justify-center gap-2">
                       <span className="animate-spin">⟳</span>
-                      Uploading and queuing training job...
+                      Uploading...
                     </span>
                   ) : '🚀 Upload and Start Training'}
                 </button>

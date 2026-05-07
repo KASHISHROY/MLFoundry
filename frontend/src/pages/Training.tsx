@@ -67,7 +67,7 @@ export default function Training() {
     <DashboardLayout>
       <div className="px-8 py-8 flex items-center gap-3">
         <div className="animate-spin text-xl">⟳</div>
-        <p style={{ color: '#9CA3AF' }}>Loading job...</p>
+        <p style={{ color: 'var(--text-2)' }}>Loading job...</p>
       </div>
     </DashboardLayout>
   )
@@ -83,10 +83,10 @@ export default function Training() {
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h1 style={{ color: '#E5E7EB' }} className="text-2xl font-semibold mb-1">
+            <h1 style={{ color: 'var(--text-1)' }} className="text-2xl font-semibold mb-1">
               {isCompleted ? 'Training Complete 🎉' : isFailed ? 'Training Failed ✗' : 'Training in Progress...'}
             </h1>
-            <p style={{ color: '#6B7280' }} className="text-sm">
+            <p style={{ color: 'var(--text-3)' }} className="text-sm">
               Job #{jobId} · {isCompleted ? 'Finished' : isFailed ? 'Failed' : 'Running'}
             </p>
           </div>
@@ -103,17 +103,17 @@ export default function Training() {
         </div>
 
         {/* Progress bar */}
-        <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+        <div style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
           className="rounded-xl p-6 mb-6">
           <div className="flex items-center justify-between mb-3">
-            <span style={{ color: '#9CA3AF' }} className="text-sm font-medium">
+            <span style={{ color: 'var(--text-2)' }} className="text-sm font-medium">
               Overall progress
             </span>
-            <span style={{ color: '#E5E7EB' }} className="text-sm font-mono font-semibold">
+            <span style={{ color: 'var(--text-1)' }} className="text-sm font-mono font-semibold">
               {job.progress}%
             </span>
           </div>
-          <div style={{ backgroundColor: '#1F2937' }} className="w-full rounded-full h-2 mb-6">
+          <div style={{ backgroundColor: 'var(--border)' }} className="w-full rounded-full h-2 mb-6">
             <div
               style={{
                 background: isFailed
@@ -150,12 +150,12 @@ export default function Training() {
                         ? 'rgba(34,197,94,0.15)'
                         : isCurrent
                         ? 'rgba(99,102,241,0.2)'
-                        : '#1F2937',
+                        : 'var(--border)',
                       border: isDone
                         ? '1px solid rgba(34,197,94,0.4)'
                         : isCurrent
                         ? '1px solid rgba(99,102,241,0.5)'
-                        : '1px solid #374151',
+                        : '1px solid var(--border-2)',
                     }}
                     className={isCurrent ? 'animate-pulse-slow' : ''}
                   >
@@ -163,7 +163,7 @@ export default function Training() {
                   </div>
                   <span
                     style={{
-                      color: isDone ? '#22C55E' : isCurrent ? '#A5B4FC' : '#4B5563',
+                      color: isDone ? '#22C55E' : isCurrent ? '#A5B4FC' : 'var(--text-4)',
                       fontSize: '9px',
                       textAlign: 'center',
                       lineHeight: '1.2',
@@ -178,9 +178,9 @@ export default function Training() {
         </div>
 
         {/* Logs */}
-        <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+        <div style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
           className="rounded-xl overflow-hidden">
-          <div style={{ borderBottom: '1px solid #1F2937' }}
+          <div style={{ borderBottom: '1px solid var(--border)' }}
             className="px-5 py-3.5 flex items-center gap-2">
             <div style={{
               width: '8px', height: '8px', borderRadius: '50%',
@@ -188,19 +188,19 @@ export default function Training() {
             }}
               className={(!isCompleted && !isFailed) ? 'animate-pulse' : ''}
             />
-            <h2 style={{ color: '#E5E7EB' }} className="text-sm font-semibold">
+            <h2 style={{ color: 'var(--text-1)' }} className="text-sm font-semibold">
               Live logs
             </h2>
           </div>
 
           <div
-            style={{ backgroundColor: '#0D1117', maxHeight: '400px', overflowY: 'auto' }}
+            style={{ backgroundColor: 'var(--surface-2)', maxHeight: '400px', overflowY: 'auto' }}
             className="p-5 font-mono text-xs space-y-1.5"
           >
             {job.logs && job.logs.length > 0 ? (
               job.logs.map((log, i) => (
                 <div key={i} className="flex items-start gap-3">
-                  <span style={{ color: '#374151' }} className="shrink-0 select-none">
+                  <span style={{ color: 'var(--border-2)' }} className="shrink-0 select-none">
                     {String(i + 1).padStart(2, '0')}
                   </span>
                   <span style={{
@@ -208,20 +208,20 @@ export default function Training() {
                          : log.includes('✗') || log.includes('failed') ? '#EF4444'
                          : log.includes('🏆') ? '#F59E0B'
                          : log.includes('⟳') ? '#6366F1'
-                         : '#9CA3AF'
+                         : 'var(--text-2)'
                   }}>
                     {log}
                   </span>
                 </div>
               ))
             ) : (
-              <span style={{ color: '#374151' }}>Waiting for logs...</span>
+              <span style={{ color: 'var(--border-2)' }}>Waiting for logs...</span>
             )}
 
             {/* Live indicator */}
             {!isCompleted && !isFailed && (
               <div className="flex items-center gap-2 pt-1">
-                <span style={{ color: '#374151' }}>──</span>
+                <span style={{ color: 'var(--border-2)' }}>──</span>
                 <span style={{ color: '#6366F1' }} className="animate-pulse">
                   training...
                 </span>

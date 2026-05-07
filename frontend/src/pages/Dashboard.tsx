@@ -64,10 +64,10 @@ export default function Dashboard() {
 
         {/* Header */}
         <div className="mb-8">
-          <h1 style={{ color: '#E5E7EB' }} className="text-2xl font-semibold mb-1">
+          <h1 style={{ color: 'var(--text-1)' }} className="text-2xl font-semibold mb-1">
             Dashboard
           </h1>
-          <p style={{ color: '#6B7280' }} className="text-sm">
+          <p style={{ color: 'var(--text-3)' }} className="text-sm">
             Your ML workspace overview
           </p>
         </div>
@@ -77,15 +77,15 @@ export default function Dashboard() {
           {statCards.map((s, i) => (
             <div
               key={i}
-              style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+              style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
               className="rounded-xl px-5 py-4 hover:border-gray-600 transition-all"
             >
               <div className="flex items-center gap-2 mb-3">
                 <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: s.color }} />
-                <p style={{ color: '#6B7280' }} className="text-xs font-medium">{s.label}</p>
+                <p style={{ color: 'var(--text-3)' }} className="text-xs font-medium">{s.label}</p>
               </div>
-              <p style={{ color: '#E5E7EB' }} className="text-2xl font-semibold mb-0.5">{s.value}</p>
-              <p style={{ color: '#4B5563' }} className="text-xs">{s.sub}</p>
+              <p style={{ color: 'var(--text-1)' }} className="text-2xl font-semibold mb-0.5">{s.value}</p>
+              <p style={{ color: 'var(--text-4)' }} className="text-xs">{s.sub}</p>
             </div>
           ))}
         </div>
@@ -94,11 +94,11 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
           {/* Recent models */}
-          <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+          <div style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
             className="lg:col-span-2 rounded-xl overflow-hidden">
-            <div style={{ borderBottom: '1px solid #1F2937' }}
+            <div style={{ borderBottom: '1px solid var(--border)' }}
               className="px-5 py-4 flex items-center justify-between">
-              <h2 style={{ color: '#E5E7EB' }} className="text-sm font-semibold">
+              <h2 style={{ color: 'var(--text-1)' }} className="text-sm font-semibold">
                 Recent models
               </h2>
               <button
@@ -112,11 +112,11 @@ export default function Dashboard() {
 
             {loading ? (
               <div className="px-5 py-8 text-center">
-                <p style={{ color: '#4B5563' }} className="text-sm">Loading...</p>
+                <p style={{ color: 'var(--text-4)' }} className="text-sm">Loading...</p>
               </div>
             ) : stats?.recent_models.length === 0 ? (
               <div className="px-5 py-8 text-center">
-                <p style={{ color: '#4B5563' }} className="text-sm">No models trained yet</p>
+                <p style={{ color: 'var(--text-4)' }} className="text-sm">No models trained yet</p>
                 <button
                   onClick={() => navigate('/upload')}
                   style={{ color: '#6366F1' }}
@@ -130,7 +130,7 @@ export default function Dashboard() {
                 {stats?.recent_models.map((m, i) => (
                   <div
                     key={i}
-                    style={{ borderBottom: i < (stats.recent_models.length - 1) ? '1px solid #1F2937' : 'none' }}
+                    style={{ borderBottom: i < (stats.recent_models.length - 1) ? '1px solid var(--border)' : 'none' }}
                     className="px-5 py-3.5 flex items-center justify-between hover:bg-white/[0.02] transition-all cursor-pointer"
                     onClick={() => navigate(`/results/${m.job_id}`)}
                   >
@@ -142,22 +142,22 @@ export default function Dashboard() {
                         ◈
                       </div>
                       <div>
-                        <p style={{ color: '#E5E7EB' }} className="text-sm font-medium font-mono">
+                        <p style={{ color: 'var(--text-1)' }} className="text-sm font-medium font-mono">
                           {m.name}
                         </p>
-                        <p style={{ color: '#4B5563' }} className="text-xs">
+                        <p style={{ color: 'var(--text-4)' }} className="text-xs">
                           {m.best_model} · {m.problem_type}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-5">
                       <div className="text-right">
-                        <p style={{ color: '#E5E7EB' }} className="text-sm font-semibold">
+                        <p style={{ color: 'var(--text-1)' }} className="text-sm font-semibold">
                           {m.accuracy ? `${(m.accuracy * 100).toFixed(2)}%` : 'N/A'}
                         </p>
-                        <p style={{ color: '#4B5563' }} className="text-xs">accuracy</p>
+                        <p style={{ color: 'var(--text-4)' }} className="text-xs">accuracy</p>
                       </div>
-                      <p style={{ color: '#4B5563' }} className="text-xs hidden sm:block">
+                      <p style={{ color: 'var(--text-4)' }} className="text-xs hidden sm:block">
                         {timeAgo(m.created_at)}
                       </p>
                     </div>
@@ -168,10 +168,10 @@ export default function Dashboard() {
           </div>
 
           {/* Quick start */}
-          <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+          <div style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
             className="rounded-xl flex flex-col overflow-hidden">
-            <div style={{ borderBottom: '1px solid #1F2937' }} className="px-5 py-4">
-              <h2 style={{ color: '#E5E7EB' }} className="text-sm font-semibold">Quick start</h2>
+            <div style={{ borderBottom: '1px solid var(--border)' }} className="px-5 py-4">
+              <h2 style={{ color: 'var(--text-1)' }} className="text-sm font-semibold">Quick start</h2>
             </div>
             <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
               <div style={{
@@ -180,10 +180,10 @@ export default function Dashboard() {
               }} className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-4">
                 📂
               </div>
-              <p style={{ color: '#E5E7EB' }} className="text-sm font-medium mb-1">
+              <p style={{ color: 'var(--text-1)' }} className="text-sm font-medium mb-1">
                 Upload a dataset
               </p>
-              <p style={{ color: '#6B7280' }} className="text-xs mb-6 leading-relaxed">
+              <p style={{ color: 'var(--text-3)' }} className="text-xs mb-6 leading-relaxed">
                 Supports CSV, Excel, JSON, Parquet. AI agents train the best model automatically.
               </p>
               <button
@@ -195,7 +195,7 @@ export default function Dashboard() {
               </button>
               <button
                 onClick={() => navigate('/marketplace')}
-                style={{ color: '#4B5563' }}
+                style={{ color: 'var(--text-4)' }}
                 className="text-xs mt-3 hover:text-gray-400 transition-all"
               >
                 browse marketplace →

@@ -46,7 +46,7 @@ interface Results {
 
 function rateMetric(value: number, metricKey: string): { label: string; color: string } {
   if (['rmse', 'mae'].includes(metricKey)) {
-    return { label: 'lower is better', color: '#6B7280' }
+    return { label: 'lower is better', color: 'var(--text-3)' }
   }
   if (value >= 0.95) return { label: 'Excellent', color: '#22C55E' }
   if (value >= 0.90) return { label: 'Very Good', color: '#22C55E' }
@@ -182,7 +182,7 @@ export default function Results() {
       <DashboardLayout>
         <div className="px-8 py-8 flex items-center gap-3">
           <span className="animate-spin text-xl" style={{ color: '#6366F1' }}>⟳</span>
-          <p style={{ color: '#9CA3AF' }}>Loading results...</p>
+          <p style={{ color: 'var(--text-2)' }}>Loading results...</p>
         </div>
       </DashboardLayout>
     )
@@ -236,17 +236,17 @@ export default function Results() {
           <div>
             <button
               onClick={() => navigate('/dashboard')}
-              style={{ color: '#6B7280' }}
+              style={{ color: 'var(--text-3)' }}
               className="text-sm hover:text-gray-400 transition-all mb-2 block"
             >
               ← Dashboard
             </button>
 
-            <h1 style={{ color: '#E5E7EB' }} className="text-2xl font-semibold mb-1">
+            <h1 style={{ color: 'var(--text-1)' }} className="text-2xl font-semibold mb-1">
               Training Results
             </h1>
 
-            <p style={{ color: '#6B7280' }} className="text-sm">
+            <p style={{ color: 'var(--text-3)' }} className="text-sm">
               Job #{jobId} · {results.problem_type} ·{' '}
               {results.dataset_size?.toLocaleString()} rows ·{' '}
               {results.all_models?.length} models trained
@@ -288,13 +288,13 @@ export default function Results() {
                 {verdict.title}
               </h2>
 
-              <p style={{ color: '#9CA3AF' }} className="text-sm leading-relaxed max-w-2xl">
+              <p style={{ color: 'var(--text-2)' }} className="text-sm leading-relaxed max-w-2xl">
                 {verdict.message}
               </p>
             </div>
 
             <div className="text-right">
-              <p style={{ color: '#6B7280' }} className="text-xs uppercase tracking-widest mb-1">
+              <p style={{ color: 'var(--text-3)' }} className="text-xs uppercase tracking-widest mb-1">
                 {primaryLabel}
               </p>
 
@@ -336,10 +336,10 @@ export default function Results() {
           </div>
 
           <div>
-            <p style={{ color: '#6B7280' }} className="text-xs mb-0.5">
+            <p style={{ color: 'var(--text-3)' }} className="text-xs mb-0.5">
               Best performing algorithm
             </p>
-            <p style={{ color: '#E5E7EB' }} className="text-lg font-semibold">
+            <p style={{ color: 'var(--text-1)' }} className="text-lg font-semibold">
               {results.best_model}
             </p>
           </div>
@@ -379,14 +379,14 @@ export default function Results() {
 
           {/* Feature Importance */}
           <div
-            style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+            style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
             className="rounded-xl overflow-hidden"
           >
-            <div style={{ borderBottom: '1px solid #1F2937' }} className="px-5 py-4">
-              <h3 style={{ color: '#E5E7EB' }} className="text-sm font-semibold mb-0.5">
+            <div style={{ borderBottom: '1px solid var(--border)' }} className="px-5 py-4">
+              <h3 style={{ color: 'var(--text-1)' }} className="text-sm font-semibold mb-0.5">
                 Feature Importance
               </h3>
-              <p style={{ color: '#4B5563' }} className="text-xs">
+              <p style={{ color: 'var(--text-4)' }} className="text-xs">
                 What matters most to the model overall
               </p>
             </div>
@@ -402,17 +402,17 @@ export default function Results() {
                         </span>
                       )}
 
-                      <span style={{ color: '#9CA3AF' }} className="text-xs font-mono">
+                      <span style={{ color: 'var(--text-2)' }} className="text-xs font-mono">
                         {f.feature}
                       </span>
                     </div>
 
-                    <span style={{ color: '#6B7280' }} className="text-xs font-mono">
+                    <span style={{ color: 'var(--text-3)' }} className="text-xs font-mono">
                       {(f.importance * 100).toFixed(2)}%
                     </span>
                   </div>
 
-                  <div style={{ backgroundColor: '#1F2937' }} className="w-full rounded-full h-1.5">
+                  <div style={{ backgroundColor: 'var(--border)' }} className="w-full rounded-full h-1.5">
                     <div
                       style={{
                         width: `${(f.importance / maxImportance) * 100}%`,
@@ -420,7 +420,7 @@ export default function Results() {
                           ? 'linear-gradient(135deg, #3B82F6, #6366F1)'
                           : i === 1
                             ? 'linear-gradient(135deg, #6366F1, #8B5CF6)'
-                            : '#374151',
+                            : 'var(--border-2)',
                         transition: 'width 0.8s ease',
                       }}
                       className="h-1.5 rounded-full"
@@ -433,14 +433,14 @@ export default function Results() {
 
           {/* Model Comparison */}
           <div
-            style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+            style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
             className="rounded-xl overflow-hidden"
           >
-            <div style={{ borderBottom: '1px solid #1F2937' }} className="px-5 py-4">
-              <h3 style={{ color: '#E5E7EB' }} className="text-sm font-semibold mb-0.5">
+            <div style={{ borderBottom: '1px solid var(--border)' }} className="px-5 py-4">
+              <h3 style={{ color: 'var(--text-1)' }} className="text-sm font-semibold mb-0.5">
                 All Models Ranked
               </h3>
-              <p style={{ color: '#4B5563' }} className="text-xs">
+              <p style={{ color: 'var(--text-4)' }} className="text-xs">
                 {results.all_models?.length} algorithms compared
               </p>
             </div>
@@ -450,13 +450,13 @@ export default function Results() {
                 <div key={i}>
                   <div
                     onClick={() => setExpandedModel(expandedModel === i ? null : i)}
-                    style={{ borderBottom: '1px solid #1F2937', cursor: 'pointer' }}
+                    style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
                     className="px-5 py-3 flex items-center justify-between hover:bg-white/[0.02] transition-all"
                   >
                     <div className="flex items-center gap-3">
                       <span
                         style={{
-                          color: i === 0 ? '#F59E0B' : '#4B5563',
+                          color: i === 0 ? '#F59E0B' : 'var(--text-4)',
                           fontSize: '12px',
                           fontWeight: '600',
                           width: '24px',
@@ -466,7 +466,7 @@ export default function Results() {
                       </span>
 
                       <div>
-                        <p style={{ color: '#E5E7EB' }} className="text-sm font-medium">
+                        <p style={{ color: 'var(--text-1)' }} className="text-sm font-medium">
                           {m.model_name}
                         </p>
 
@@ -490,18 +490,18 @@ export default function Results() {
                     <div className="flex items-center gap-3">
                       <div className="text-right">
                         <p
-                          style={{ color: i === 0 ? '#A5B4FC' : '#E5E7EB' }}
+                          style={{ color: i === 0 ? '#A5B4FC' : 'var(--text-1)' }}
                           className="text-sm font-mono font-semibold"
                         >
                           {(m.primary_score * 100).toFixed(2)}%
                         </p>
 
-                        <p style={{ color: '#4B5563' }} className="text-xs">
+                        <p style={{ color: 'var(--text-4)' }} className="text-xs">
                           {isClassification ? 'accuracy' : 'R²'}
                         </p>
                       </div>
 
-                      <span style={{ color: '#4B5563', fontSize: '10px' }}>
+                      <span style={{ color: 'var(--text-4)', fontSize: '10px' }}>
                         {expandedModel === i ? '▲' : '▼'}
                       </span>
                     </div>
@@ -510,19 +510,19 @@ export default function Results() {
                   {expandedModel === i && (
                     <div
                       style={{
-                        backgroundColor: '#0D1117',
-                        borderBottom: '1px solid #1F2937'
+                        backgroundColor: 'var(--surface-2)',
+                        borderBottom: '1px solid var(--border)'
                       }}
                       className="px-5 py-3"
                     >
                       <div className="grid grid-cols-2 gap-3">
                         {Object.entries(m.metrics).map(([key, val]) => (
                           <div key={key}>
-                            <p style={{ color: '#4B5563' }} className="text-xs mb-0.5 capitalize">
+                            <p style={{ color: 'var(--text-4)' }} className="text-xs mb-0.5 capitalize">
                               {key.replace('_', ' ')}
                             </p>
 
-                            <p style={{ color: '#9CA3AF' }} className="text-sm font-mono">
+                            <p style={{ color: 'var(--text-2)' }} className="text-sm font-mono">
                               {typeof val === 'number'
                                 ? !['rmse', 'mae'].includes(key)
                                   ? `${(val * 100).toFixed(2)}%`
@@ -544,15 +544,15 @@ export default function Results() {
         {/* SHAP Section */}
         {results.shap_summary && results.shap_summary.length > 0 && (
           <div
-            style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+            style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
             className="rounded-xl overflow-hidden mb-8"
           >
-            <div style={{ borderBottom: '1px solid #1F2937' }} className="px-5 py-4">
-              <h3 style={{ color: '#E5E7EB' }} className="text-sm font-semibold mb-0.5">
+            <div style={{ borderBottom: '1px solid var(--border)' }} className="px-5 py-4">
+              <h3 style={{ color: 'var(--text-1)' }} className="text-sm font-semibold mb-0.5">
                 SHAP Explainability
               </h3>
 
-              <p style={{ color: '#4B5563' }} className="text-xs leading-relaxed">
+              <p style={{ color: 'var(--text-4)' }} className="text-xs leading-relaxed">
                 Feature importance tells you WHAT matters. SHAP tells you HOW —
                 does this feature push predictions up (purple) or down (red)?
                 Per-prediction SHAP is available in the deployment tester.
@@ -580,7 +580,7 @@ export default function Results() {
                           {isPositive ? '+' : '−'}
                         </span>
 
-                        <span style={{ color: '#9CA3AF' }} className="text-xs font-mono">
+                        <span style={{ color: 'var(--text-2)' }} className="text-xs font-mono">
                           {s.feature}
                         </span>
                       </div>
@@ -626,7 +626,7 @@ export default function Results() {
                         )}
                       </div>
 
-                      <div style={{ width: '1px', height: '12px', backgroundColor: '#374151' }} />
+                      <div style={{ width: '1px', height: '12px', backgroundColor: 'var(--border-2)' }} />
 
                       <div style={{ width: '50%' }}>
                         {isPositive && (
@@ -647,7 +647,7 @@ export default function Results() {
 
               <div
                 className="flex items-center gap-6 mt-4 pt-4"
-                style={{ borderTop: '1px solid #1F2937' }}
+                style={{ borderTop: '1px solid var(--border)' }}
               >
                 <div className="flex items-center gap-2">
                   <div
@@ -658,7 +658,7 @@ export default function Results() {
                       borderRadius: '3px',
                     }}
                   />
-                  <span style={{ color: '#6B7280' }} className="text-xs">
+                  <span style={{ color: 'var(--text-3)' }} className="text-xs">
                     Pushes prediction higher
                   </span>
                 </div>
@@ -672,7 +672,7 @@ export default function Results() {
                       borderRadius: '3px',
                     }}
                   />
-                  <span style={{ color: '#6B7280' }} className="text-xs">
+                  <span style={{ color: 'var(--text-3)' }} className="text-xs">
                     Pushes prediction lower
                   </span>
                 </div>
@@ -683,37 +683,37 @@ export default function Results() {
 
         {/* Plain English Explanation */}
         <div
-          style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+          style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
           className="rounded-xl p-6 mb-6"
         >
-          <h3 style={{ color: '#E5E7EB' }} className="text-sm font-semibold mb-1">
+          <h3 style={{ color: 'var(--text-1)' }} className="text-sm font-semibold mb-1">
             📖 Plain English Explanation
           </h3>
 
-          <p style={{ color: '#4B5563' }} className="text-xs mb-5">
+          <p style={{ color: 'var(--text-4)' }} className="text-xs mb-5">
             What your results mean in simple terms
           </p>
 
           <div className="space-y-4">
             <div style={{ borderLeft: '2px solid #6366F1' }} className="pl-4">
-              <p style={{ color: '#6B7280' }} className="text-xs font-medium uppercase tracking-wide mb-1">
+              <p style={{ color: 'var(--text-3)' }} className="text-xs font-medium uppercase tracking-wide mb-1">
                 What happened
               </p>
 
-              <p style={{ color: '#9CA3AF' }} className="text-sm leading-relaxed">
-                Your <strong style={{ color: '#E5E7EB' }}>{results.dataset_size?.toLocaleString()}-row</strong> dataset
+              <p style={{ color: 'var(--text-2)' }} className="text-sm leading-relaxed">
+                Your <strong style={{ color: 'var(--text-1)' }}>{results.dataset_size?.toLocaleString()}-row</strong> dataset
                 was processed through 5 AI agents — cleaning, feature engineering, training, tuning, and explanation.{' '}
-                <strong style={{ color: '#E5E7EB' }}>{results.all_models?.length} different algorithms</strong> competed,
+                <strong style={{ color: 'var(--text-1)' }}>{results.all_models?.length} different algorithms</strong> competed,
                 and <strong style={{ color: '#A5B4FC' }}>{results.best_model}</strong> won.
               </p>
             </div>
 
             <div style={{ borderLeft: `2px solid ${verdict.color}` }} className="pl-4">
-              <p style={{ color: '#6B7280' }} className="text-xs font-medium uppercase tracking-wide mb-1">
+              <p style={{ color: 'var(--text-3)' }} className="text-xs font-medium uppercase tracking-wide mb-1">
                 Is this result good?
               </p>
 
-              <p style={{ color: '#9CA3AF' }} className="text-sm leading-relaxed">
+              <p style={{ color: 'var(--text-2)' }} className="text-sm leading-relaxed">
                 <strong style={{ color: verdict.color }}>
                   {verdict.title.replace(/[🏆✅👍⚠️❌]/g, '').trim()}
                 </strong>{' '}
@@ -723,13 +723,13 @@ export default function Results() {
 
             {results.feature_importance?.length > 0 && (
               <div style={{ borderLeft: '2px solid #F59E0B' }} className="pl-4">
-                <p style={{ color: '#6B7280' }} className="text-xs font-medium uppercase tracking-wide mb-1">
+                <p style={{ color: 'var(--text-3)' }} className="text-xs font-medium uppercase tracking-wide mb-1">
                   What drives predictions
                 </p>
 
-                <p style={{ color: '#9CA3AF' }} className="text-sm leading-relaxed">
+                <p style={{ color: 'var(--text-2)' }} className="text-sm leading-relaxed">
                   The most important factor is{' '}
-                  <strong style={{ color: '#E5E7EB' }}>
+                  <strong style={{ color: 'var(--text-1)' }}>
                     {results.feature_importance[0]?.feature}
                   </strong>{' '}
                   ({(results.feature_importance[0]?.importance * 100).toFixed(2)}% importance).
@@ -737,14 +737,14 @@ export default function Results() {
                   {results.feature_importance[1] && (
                     <>
                       {' '}Followed by{' '}
-                      <strong style={{ color: '#E5E7EB' }}>
+                      <strong style={{ color: 'var(--text-1)' }}>
                         {results.feature_importance[1]?.feature}
                       </strong>
 
                       {results.feature_importance[2] && (
                         <>
                           {' '}and{' '}
-                          <strong style={{ color: '#E5E7EB' }}>
+                          <strong style={{ color: 'var(--text-1)' }}>
                             {results.feature_importance[2]?.feature}
                           </strong>
                         </>
@@ -759,11 +759,11 @@ export default function Results() {
             )}
 
             <div style={{ borderLeft: '2px solid #22C55E' }} className="pl-4">
-              <p style={{ color: '#6B7280' }} className="text-xs font-medium uppercase tracking-wide mb-1">
+              <p style={{ color: 'var(--text-3)' }} className="text-xs font-medium uppercase tracking-wide mb-1">
                 What to do next
               </p>
 
-              <p style={{ color: '#9CA3AF' }} className="text-sm leading-relaxed">
+              <p style={{ color: 'var(--text-2)' }} className="text-sm leading-relaxed">
                 {primaryScore >= 0.85
                   ? isDeployed
                     ? 'Your model is already deployed. Click "View API" to see the live endpoint.'
@@ -858,7 +858,7 @@ function MetricCard({
 
   return (
     <div
-      style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+      style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
       className="rounded-xl p-4 hover:border-gray-600 transition-all"
     >
       <div className="flex items-center justify-between mb-2">
@@ -872,7 +872,7 @@ function MetricCard({
             }}
           />
 
-          <p style={{ color: '#6B7280' }} className="text-xs font-medium">
+          <p style={{ color: 'var(--text-3)' }} className="text-xs font-medium">
             {label}
           </p>
         </div>
@@ -885,13 +885,13 @@ function MetricCard({
       </div>
 
       <p
-        style={{ color: value !== undefined ? '#E5E7EB' : '#4B5563' }}
+        style={{ color: value !== undefined ? 'var(--text-1)' : 'var(--text-4)' }}
         className="text-2xl font-semibold font-mono mb-2"
       >
         {displayVal}
       </p>
 
-      <p style={{ color: '#4B5563' }} className="text-xs leading-relaxed">
+      <p style={{ color: 'var(--text-4)' }} className="text-xs leading-relaxed">
         {description}
       </p>
     </div>

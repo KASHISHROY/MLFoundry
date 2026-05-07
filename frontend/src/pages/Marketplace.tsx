@@ -50,10 +50,10 @@ export default function Marketplace() {
 
         {/* Header */}
         <div className="mb-8">
-          <h1 style={{ color: '#E5E7EB' }} className="text-2xl font-semibold mb-1">
+          <h1 style={{ color: 'var(--text-1)' }} className="text-2xl font-semibold mb-1">
             Marketplace
           </h1>
-          <p style={{ color: '#6B7280' }} className="text-sm">
+          <p style={{ color: 'var(--text-3)' }} className="text-sm">
             Discover and use publicly available ML models
           </p>
         </div>
@@ -65,7 +65,7 @@ export default function Marketplace() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search models..."
-            style={{ backgroundColor: '#111827', border: '1px solid #1F2937', color: '#E5E7EB' }}
+            style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
             className="flex-1 rounded-lg px-4 py-2.5 text-sm outline-none placeholder-gray-600"
           />
           {['all', 'classification', 'regression'].map((f) => (
@@ -76,9 +76,9 @@ export default function Marketplace() {
                 background: 'linear-gradient(135deg, #3B82F6, #6366F1)',
                 color: 'white',
               } : {
-                backgroundColor: '#111827',
-                border: '1px solid #1F2937',
-                color: '#6B7280',
+                backgroundColor: 'var(--surface)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-3)',
               }}
               className="px-4 py-2.5 rounded-lg text-sm font-medium capitalize transition-all"
             >
@@ -90,16 +90,16 @@ export default function Marketplace() {
         {loading ? (
           <div className="flex items-center gap-3 py-8">
             <span className="animate-spin" style={{ color: '#6366F1' }}>⟳</span>
-            <p style={{ color: '#6B7280' }}>Loading marketplace...</p>
+            <p style={{ color: 'var(--text-3)' }}>Loading marketplace...</p>
           </div>
         ) : filtered.length === 0 ? (
-          <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+          <div style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
             className="rounded-2xl p-16 text-center">
             <div className="text-5xl mb-4">🛒</div>
-            <h3 style={{ color: '#E5E7EB' }} className="text-lg font-semibold mb-2">
+            <h3 style={{ color: 'var(--text-1)' }} className="text-lg font-semibold mb-2">
               No models found
             </h3>
-            <p style={{ color: '#6B7280' }} className="text-sm">
+            <p style={{ color: 'var(--text-3)' }} className="text-sm">
               {models.length === 0
                 ? 'No models have been deployed yet. Be the first!'
                 : 'Try a different search term'}
@@ -110,17 +110,17 @@ export default function Marketplace() {
             {filtered.map((m) => (
               <div
                 key={m.id}
-                style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+                style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
                 className="rounded-xl overflow-hidden hover:border-gray-600 transition-all"
               >
                 <div className="p-5">
                   {/* Header */}
                   <div className="flex items-start justify-between mb-4">
                     <div>
-                      <p style={{ color: '#E5E7EB' }} className="font-semibold mb-0.5">
+                      <p style={{ color: 'var(--text-1)' }} className="font-semibold mb-0.5">
                         {m.name}
                       </p>
-                      <p style={{ color: '#4B5563' }} className="text-xs">
+                      <p style={{ color: 'var(--text-4)' }} className="text-xs">
                         by {m.owner}
                       </p>
                     </div>
@@ -145,10 +145,10 @@ export default function Marketplace() {
                       { label: 'Accuracy',  value: m.accuracy ? `${(m.accuracy * 100).toFixed(1)}%` : 'N/A' },
                       { label: 'API Calls', value: m.call_count.toString() },
                     ].map((stat, i) => (
-                      <div key={i} style={{ backgroundColor: '#0D1117', borderRadius: '8px' }}
+                      <div key={i} style={{ backgroundColor: 'var(--surface-2)', borderRadius: '8px' }}
                         className="p-2.5">
-                        <p style={{ color: '#4B5563' }} className="text-xs mb-0.5">{stat.label}</p>
-                        <p style={{ color: '#E5E7EB' }} className="text-sm font-semibold">
+                        <p style={{ color: 'var(--text-4)' }} className="text-xs mb-0.5">{stat.label}</p>
+                        <p style={{ color: 'var(--text-1)' }} className="text-sm font-semibold">
                           {stat.value}
                         </p>
                       </div>
@@ -157,14 +157,14 @@ export default function Marketplace() {
 
                   {/* Features */}
                   <div className="mb-4">
-                    <p style={{ color: '#4B5563' }} className="text-xs mb-1.5">
-                      Predicts: <strong style={{ color: '#9CA3AF' }}>{m.target_column}</strong>
+                    <p style={{ color: 'var(--text-4)' }} className="text-xs mb-1.5">
+                      Predicts: <strong style={{ color: 'var(--text-2)' }}>{m.target_column}</strong>
                     </p>
                     <div className="flex flex-wrap gap-1">
                       {m.features?.slice(0, 5).map((f, i) => (
                         <span key={i} style={{
-                          backgroundColor: '#1F2937',
-                          color: '#6B7280',
+                          backgroundColor: 'var(--border)',
+                          color: 'var(--text-3)',
                           fontSize: '10px',
                           padding: '1px 6px',
                           borderRadius: '4px',
@@ -174,7 +174,7 @@ export default function Marketplace() {
                         </span>
                       ))}
                       {(m.features?.length || 0) > 5 && (
-                        <span style={{ color: '#4B5563', fontSize: '10px' }}>
+                        <span style={{ color: 'var(--text-4)', fontSize: '10px' }}>
                           +{m.features.length - 5} more
                         </span>
                       )}
@@ -189,9 +189,9 @@ export default function Marketplace() {
                       border: '1px solid rgba(34,197,94,0.3)',
                       color: '#22C55E',
                     } : {
-                      backgroundColor: '#1F2937',
-                      border: '1px solid #374151',
-                      color: '#9CA3AF',
+                      backgroundColor: 'var(--border)',
+                      border: '1px solid var(--border-2)',
+                      color: 'var(--text-2)',
                     }}
                     className="w-full text-sm font-medium py-2 rounded-lg transition-all"
                   >

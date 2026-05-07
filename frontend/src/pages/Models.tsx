@@ -41,16 +41,18 @@ export default function Models() {
     ]).then(([statsRes, deployRes]) => {
       setModels(statsRes.data.recent_models || [])
       // deployRes.data is now array of objects with job_id
-      setDeployed(deployRes.data.map((d: any) => ({
-        id:     d.id,
-        job_id: d.job_id,
-      })))
+      setDeployed((deployRes.data || [])
+        .filter((d: any) => d.job_id !== undefined && d.job_id !== null)
+        .map((d: any) => ({
+          id:     Number(d.id),
+          job_id: Number(d.job_id),
+        })))
     }).catch(() => {})
     .finally(() => setLoading(false))
   }, [])
 
   function getDeployedInfo(jobId: number): DeployedInfo | null {
-    return deployed.find(d => d.job_id === jobId) || null
+    return deployed.find(d => d.job_id === Number(jobId)) || null
   }
 
   return (

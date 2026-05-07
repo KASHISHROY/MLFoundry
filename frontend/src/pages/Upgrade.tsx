@@ -97,7 +97,7 @@ export default function Upgrade() {
     <DashboardLayout>
       <div className="px-8 py-8 flex items-center gap-3">
         <span className="animate-spin" style={{ color: '#6366F1' }}>⟳</span>
-        <p style={{ color: '#9CA3AF' }}>Loading plan info...</p>
+        <p style={{ color: 'var(--text-2)' }}>Loading plan info...</p>
       </div>
     </DashboardLayout>
   )
@@ -108,10 +108,10 @@ export default function Upgrade() {
 
         {/* Header */}
         <div className="mb-8">
-          <h1 style={{ color: '#E5E7EB' }} className="text-2xl font-semibold mb-1">
+          <h1 style={{ color: 'var(--text-1)' }} className="text-2xl font-semibold mb-1">
             Upgrade to Pro
           </h1>
-          <p style={{ color: '#6B7280' }} className="text-sm">
+          <p style={{ color: 'var(--text-3)' }} className="text-sm">
             Unlock unlimited models and priority training
           </p>
         </div>
@@ -126,7 +126,7 @@ export default function Upgrade() {
             <h2 style={{ color: '#22C55E' }} className="text-2xl font-semibold mb-2">
               Welcome to Pro!
             </h2>
-            <p style={{ color: '#9CA3AF' }} className="mb-6">
+            <p style={{ color: 'var(--text-2)' }} className="mb-6">
               You now have unlimited access to all MLFoundry features.
             </p>
             <button
@@ -150,7 +150,7 @@ export default function Upgrade() {
               <p style={{ color: '#A5B4FC' }} className="font-semibold">
                 You're already on Pro!
               </p>
-              <p style={{ color: '#6B7280' }} className="text-sm">
+              <p style={{ color: 'var(--text-3)' }} className="text-sm">
                 Enjoy unlimited models and all features.
               </p>
             </div>
@@ -162,16 +162,16 @@ export default function Upgrade() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
 
             {/* Free plan */}
-            <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+            <div style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
               className="rounded-2xl p-6">
               <div className="mb-6">
-                <p style={{ color: '#6B7280' }} className="text-xs uppercase tracking-widest mb-2">
+                <p style={{ color: 'var(--text-3)' }} className="text-xs uppercase tracking-widest mb-2">
                   Current Plan
                 </p>
-                <h2 style={{ color: '#E5E7EB' }} className="text-2xl font-semibold mb-1">
+                <h2 style={{ color: 'var(--text-1)' }} className="text-2xl font-semibold mb-1">
                   Free
                 </h2>
-                <p style={{ color: '#4B5563' }} className="text-3xl font-bold">₹0</p>
+                <p style={{ color: 'var(--text-4)' }} className="text-3xl font-bold">₹0</p>
               </div>
 
               <div className="space-y-3 mb-6">
@@ -184,10 +184,10 @@ export default function Upgrade() {
                   { text: 'API deployment',                      included: false },
                 ].map((item, i) => (
                   <div key={i} className="flex items-center gap-3">
-                    <span style={{ color: item.included ? '#22C55E' : '#374151' }}>
+                    <span style={{ color: item.included ? '#22C55E' : 'var(--border-2)' }}>
                       {item.included ? '✓' : '✗'}
                     </span>
-                    <span style={{ color: item.included ? '#9CA3AF' : '#374151' }}
+                    <span style={{ color: item.included ? 'var(--text-2)' : 'var(--border-2)' }}
                       className="text-sm">
                       {item.text}
                     </span>
@@ -197,16 +197,16 @@ export default function Upgrade() {
 
               {/* Usage meter */}
               <div style={{
-                backgroundColor: '#0D1117',
-                border: '1px solid #1F2937',
+                backgroundColor: 'var(--surface-2)',
+                border: '1px solid var(--border)',
               }} className="rounded-lg p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <span style={{ color: '#6B7280' }} className="text-xs">Models used</span>
-                  <span style={{ color: '#9CA3AF' }} className="text-xs font-mono">
+                  <span style={{ color: 'var(--text-3)' }} className="text-xs">Models used</span>
+                  <span style={{ color: 'var(--text-2)' }} className="text-xs font-mono">
                     {planInfo?.job_count} / {planInfo?.model_limit}
                   </span>
                 </div>
-                <div style={{ backgroundColor: '#1F2937' }} className="w-full rounded-full h-1.5">
+                <div style={{ backgroundColor: 'var(--border)' }} className="w-full rounded-full h-1.5">
                   <div style={{
                     width: `${Math.min(((planInfo?.job_count ?? 0) / (planInfo?.model_limit ?? 3)) * 100, 100)}%`,
                     background: (planInfo?.job_count ?? 0) >= (planInfo?.model_limit ?? 3)
@@ -237,12 +237,12 @@ export default function Upgrade() {
                 <p style={{ color: '#A5B4FC' }} className="text-xs uppercase tracking-widest mb-2">
                   Pro Plan
                 </p>
-                <h2 style={{ color: '#E5E7EB' }} className="text-2xl font-semibold mb-1">
+                <h2 style={{ color: 'var(--text-1)' }} className="text-2xl font-semibold mb-1">
                   Pro
                 </h2>
                 <div className="flex items-baseline gap-1">
-                  <p style={{ color: '#E5E7EB' }} className="text-3xl font-bold">₹499</p>
-                  <p style={{ color: '#6B7280' }} className="text-sm">/month</p>
+                  <p style={{ color: 'var(--text-1)' }} className="text-3xl font-bold">₹499</p>
+                  <p style={{ color: 'var(--text-3)' }} className="text-sm">/month</p>
                 </div>
               </div>
 
@@ -257,7 +257,7 @@ export default function Upgrade() {
                 ].map((text, i) => (
                   <div key={i} className="flex items-center gap-3">
                     <span style={{ color: '#6366F1' }}>✓</span>
-                    <span style={{ color: '#9CA3AF' }} className="text-sm">{text}</span>
+                    <span style={{ color: 'var(--text-2)' }} className="text-sm">{text}</span>
                   </div>
                 ))}
               </div>
@@ -280,7 +280,7 @@ export default function Upgrade() {
                 ) : '⚡ Upgrade to Pro — ₹499/month'}
               </button>
 
-              <p style={{ color: '#4B5563' }} className="text-xs text-center mt-3">
+              <p style={{ color: 'var(--text-4)' }} className="text-xs text-center mt-3">
                 Secure payment via Razorpay · Cancel anytime
               </p>
             </div>
@@ -288,9 +288,9 @@ export default function Upgrade() {
         )}
 
         {/* FAQ */}
-        <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+        <div style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
           className="rounded-xl p-6">
-          <h3 style={{ color: '#E5E7EB' }} className="text-sm font-semibold mb-4">
+          <h3 style={{ color: 'var(--text-1)' }} className="text-sm font-semibold mb-4">
             Frequently Asked Questions
           </h3>
           <div className="space-y-4">
@@ -313,14 +313,14 @@ export default function Upgrade() {
               },
             ].map((item, i) => (
               <div key={i}>
-                <p style={{ color: '#E5E7EB' }} className="text-sm font-medium mb-1">
+                <p style={{ color: 'var(--text-1)' }} className="text-sm font-medium mb-1">
                   {item.q}
                 </p>
-                <p style={{ color: '#6B7280' }} className="text-sm">
+                <p style={{ color: 'var(--text-3)' }} className="text-sm">
                   {item.a}
                 </p>
                 {i < 3 && (
-                  <div style={{ borderBottom: '1px solid #1F2937' }} className="mt-4" />
+                  <div style={{ borderBottom: '1px solid var(--border)' }} className="mt-4" />
                 )}
               </div>
             ))}

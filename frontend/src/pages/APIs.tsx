@@ -52,10 +52,10 @@ export default function APIs() {
       <div className="px-8 py-8 max-w-5xl animate-fade-in">
 
         <div className="mb-8">
-          <h1 style={{ color: '#E5E7EB' }} className="text-2xl font-semibold mb-1">
+          <h1 style={{ color: 'var(--text-1)' }} className="text-2xl font-semibold mb-1">
             Deployed APIs
           </h1>
-          <p style={{ color: '#6B7280' }} className="text-sm">
+          <p style={{ color: 'var(--text-3)' }} className="text-sm">
             Your live model endpoints and API keys
           </p>
         </div>
@@ -63,16 +63,16 @@ export default function APIs() {
         {loading ? (
           <div className="flex items-center gap-3">
             <span className="animate-spin" style={{ color: '#6366F1' }}>⟳</span>
-            <p style={{ color: '#6B7280' }}>Loading...</p>
+            <p style={{ color: 'var(--text-3)' }}>Loading...</p>
           </div>
         ) : models.length === 0 ? (
-          <div style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+          <div style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
             className="rounded-2xl p-16 text-center">
             <div className="text-5xl mb-4">⚡</div>
-            <h3 style={{ color: '#E5E7EB' }} className="text-lg font-semibold mb-2">
+            <h3 style={{ color: 'var(--text-1)' }} className="text-lg font-semibold mb-2">
               No deployed APIs yet
             </h3>
-            <p style={{ color: '#6B7280' }} className="text-sm">
+            <p style={{ color: 'var(--text-3)' }} className="text-sm">
               Train a model and click "Deploy as API" to create your first endpoint
             </p>
           </div>
@@ -81,11 +81,11 @@ export default function APIs() {
             {models.map((m) => (
               <div
                 key={m.id}
-                style={{ backgroundColor: '#111827', border: '1px solid #1F2937' }}
+                style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
                 className="rounded-xl overflow-hidden"
               >
                 {/* Header */}
-                <div style={{ borderBottom: '1px solid #1F2937' }}
+                <div style={{ borderBottom: '1px solid var(--border)' }}
                   className="px-5 py-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div style={{
@@ -93,10 +93,10 @@ export default function APIs() {
                       backgroundColor: '#22C55E',
                     }} />
                     <div>
-                      <p style={{ color: '#E5E7EB' }} className="text-sm font-semibold">
+                      <p style={{ color: 'var(--text-1)' }} className="text-sm font-semibold">
                         {m.name}
                       </p>
-                      <p style={{ color: '#4B5563' }} className="text-xs">
+                      <p style={{ color: 'var(--text-4)' }} className="text-xs">
                         {m.model_name} · {m.problem_type} ·{' '}
                         {m.accuracy ? `${(m.accuracy * 100).toFixed(2)}%` : 'N/A'}
                       </p>
@@ -115,8 +115,8 @@ export default function APIs() {
                 {/* API Key */}
                 <div className="px-5 py-4 space-y-3">
                   <div>
-                    <p style={{ color: '#4B5563' }} className="text-xs mb-1.5">API Key</p>
-                    <div style={{ backgroundColor: '#0D1117', border: '1px solid #1F2937' }}
+                    <p style={{ color: 'var(--text-4)' }} className="text-xs mb-1.5">API Key</p>
+                    <div style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)' }}
                       className="rounded-lg px-4 py-2.5 flex items-center justify-between gap-3">
                       <span style={{ color: '#A5B4FC' }} className="text-sm font-mono flex-1 overflow-hidden">
                         {revealedId === m.id
@@ -127,7 +127,7 @@ export default function APIs() {
                       <div className="flex items-center gap-2 shrink-0">
                         <button
                           onClick={() => setRevealedId(revealedId === m.id ? null : m.id)}
-                          style={{ color: '#6B7280' }}
+                          style={{ color: 'var(--text-3)' }}
                           className="text-xs hover:text-gray-400"
                         >
                           {revealedId === m.id ? '🙈' : '👁'}
@@ -153,10 +153,10 @@ export default function APIs() {
 
                   {/* Endpoint */}
                   <div>
-                    <p style={{ color: '#4B5563' }} className="text-xs mb-1.5">Endpoint</p>
-                    <div style={{ backgroundColor: '#0D1117', border: '1px solid #1F2937' }}
+                    <p style={{ color: 'var(--text-4)' }} className="text-xs mb-1.5">Endpoint</p>
+                    <div style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)' }}
                       className="rounded-lg px-4 py-2.5">
-                      <span style={{ color: '#9CA3AF' }} className="text-xs font-mono">
+                      <span style={{ color: 'var(--text-2)' }} className="text-xs font-mono">
                         POST http://localhost:8000/deploy/v1/predict?api_key={m.api_key?.slice(0, 20)}...
                       </span>
                     </div>
@@ -164,15 +164,15 @@ export default function APIs() {
 
                   {/* Features */}
                   <div>
-                    <p style={{ color: '#4B5563' }} className="text-xs mb-1.5">
+                    <p style={{ color: 'var(--text-4)' }} className="text-xs mb-1.5">
                       Required features ({m.features?.length})
                     </p>
                     <div className="flex flex-wrap gap-1.5">
                       {m.features?.slice(0, 10).map((f, i) => (
                         <span key={i} style={{
-                          backgroundColor: '#0D1117',
-                          border: '1px solid #1F2937',
-                          color: '#6B7280',
+                          backgroundColor: 'var(--surface-2)',
+                          border: '1px solid var(--border)',
+                          color: 'var(--text-3)',
                           fontSize: '10px',
                           padding: '2px 8px',
                           borderRadius: '4px',
@@ -182,7 +182,7 @@ export default function APIs() {
                         </span>
                       ))}
                       {(m.features?.length || 0) > 10 && (
-                        <span style={{ color: '#4B5563' }} className="text-xs">
+                        <span style={{ color: 'var(--text-4)' }} className="text-xs">
                           +{m.features.length - 10} more
                         </span>
                       )}
