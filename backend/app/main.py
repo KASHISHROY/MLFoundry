@@ -3,8 +3,38 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import auth, datasets, deployment, payments, marketplace
 from app.core.database import engine, Base
 from app.models import user, dataset, job, deployed_model, payment
+from sqlalchemy import inspect, text
 
 Base.metadata.create_all(bind=engine)
+
+
+def ensure_runtime_columns():
+    """Small in-app migration for deployments that do not run Alembic."""
+    additions = {
+        "datasets": {
+            "file_content": "BYTEA" if engine.dialect.name == "postgresql" else "BLOB",
+        },
+        "jobs": {
+            "model_blob": "BYTEA" if engine.dialect.name == "postgresql" else "BLOB",
+        },
+        "deployed_models": {
+            "model_blob": "BYTEA" if engine.dialect.name == "postgresql" else "BLOB",
+        },
+        "api_keys": {
+            "key_hash": "VARCHAR",
+        },
+    }
+
+    inspector = inspect(engine)
+    with engine.begin() as conn:
+        for table, columns in additions.items():
+            existing = {col["name"] for col in inspector.get_columns(table)}
+            for name, col_type in columns.items():
+                if name not in existing:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {col_type}"))
+
+
+ensure_runtime_columns()
 
 app = FastAPI(
     title="MLFoundry API",

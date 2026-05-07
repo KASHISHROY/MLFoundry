@@ -113,6 +113,7 @@ async def upload_dataset(
         user_id       = current_user.id,
         name          = file.filename,
         file_path     = file_path,
+        file_content  = content,
         file_size     = file_size,
         row_count     = row_count,
         column_count  = column_count,
@@ -165,18 +166,21 @@ def retrain_dataset(
     file_exists = os.path.exists(dataset.file_path)
 
     if not file_exists:
-        # Production: file not on disk — return special error
-        # with info needed to re-upload
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "error":         "file_not_on_disk",
-                "message":       "File not found on server disk. In production, files are not persisted. Please re-upload.",
-                "dataset_name":  dataset.name,
-                "target_column": dataset.target_column,
-                "columns":       dataset.columns,
-            }
-        )
+        if dataset.file_content:
+            os.makedirs(os.path.dirname(dataset.file_path), exist_ok=True)
+            with open(dataset.file_path, "wb") as f:
+                f.write(dataset.file_content)
+        else:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "error":         "file_not_on_disk",
+                    "message":       "File not found on server disk and this older dataset has no persisted copy. Please re-upload.",
+                    "dataset_name":  dataset.name,
+                    "target_column": dataset.target_column,
+                    "columns":       dataset.columns,
+                }
+            )
 
     if not current_user.is_pro:
         from app.core.config import settings

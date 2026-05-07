@@ -1,3 +1,4 @@
+import os
 import threading
 from app.workers.celery_app import celery_app
 from app.core.database import SessionLocal
@@ -26,6 +27,11 @@ def _run_training(job_id: int):
 
         if not job or not dataset:
             return
+
+        if not os.path.exists(dataset.file_path) and dataset.file_content:
+            os.makedirs(os.path.dirname(dataset.file_path), exist_ok=True)
+            with open(dataset.file_path, "wb") as f:
+                f.write(dataset.file_content)
 
         logs = ["🚀 Training job started..."]
 
@@ -69,11 +75,18 @@ def _run_training(job_id: int):
             log_callback=smart_log
         )
 
+        model_path = results.get("model_path") if results else None
+        model_blob = None
+        if model_path and os.path.exists(model_path):
+            with open(model_path, "rb") as f:
+                model_blob = f.read()
+
         update_job(db, job_id,
             status="completed",
             stage="completed",
             progress=100,
             result=results,
+            model_blob=model_blob,
             completed_at=datetime.utcnow()
         )
 

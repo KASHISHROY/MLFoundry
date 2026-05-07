@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import DashboardLayout from '../components/DashboardLayout'
 import api from '../services/api'
@@ -11,6 +11,8 @@ interface Metrics {
   r2_score?:  number
   rmse?:      number
   mae?:       number
+  confusion_matrix?: number[][]
+  confusion_labels?: string[]
 }
 
 interface ModelResult {
@@ -207,6 +209,8 @@ export default function Results() {
   const primaryLabel = isClassification ? 'Accuracy' : 'R² Score'
 
   const maxImportance = Math.max(...(results.feature_importance?.map(f => f.importance) ?? [1]))
+  const confusionMatrix = results.best_metrics?.confusion_matrix
+  const confusionLabels = results.best_metrics?.confusion_labels || []
 
   const maxShap = results.shap_summary?.length > 0
     ? Math.abs(results.shap_summary[0].mean_shap)
@@ -373,6 +377,61 @@ export default function Results() {
             />
           ))}
         </div>
+
+        {isClassification && confusionMatrix && confusionMatrix.length > 0 && (
+          <div
+            style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
+            className="rounded-xl overflow-hidden mb-8"
+          >
+            <div style={{ borderBottom: '1px solid var(--border)' }} className="px-5 py-4">
+              <h3 style={{ color: 'var(--text-1)' }} className="text-sm font-semibold mb-0.5">
+                Confusion Matrix
+              </h3>
+              <p style={{ color: 'var(--text-4)' }} className="text-xs">
+                Actual classes by predicted classes
+              </p>
+            </div>
+            <div className="p-5 overflow-x-auto">
+              <div
+                className="grid gap-1"
+                style={{ gridTemplateColumns: `120px repeat(${confusionMatrix.length}, minmax(72px, 1fr))` }}
+              >
+                <div />
+                {confusionLabels.map((label, i) => (
+                  <div key={`pred-${i}`} style={{ color: 'var(--text-3)' }} className="text-xs text-center">
+                    Pred {label}
+                  </div>
+                ))}
+                {confusionMatrix.map((row, rowIndex) => (
+                  <Fragment key={`row-${rowIndex}`}>
+                    <div key={`actual-${rowIndex}`} style={{ color: 'var(--text-3)' }} className="text-xs flex items-center">
+                      Actual {confusionLabels[rowIndex] ?? rowIndex}
+                    </div>
+                    {row.map((value, colIndex) => {
+                      const rowMax = Math.max(...row, 1)
+                      const intensity = value / rowMax
+                      return (
+                        <div
+                          key={`${rowIndex}-${colIndex}`}
+                          style={{
+                            backgroundColor: rowIndex === colIndex
+                              ? `rgba(34,197,94,${0.12 + intensity * 0.28})`
+                              : `rgba(239,68,68,${0.08 + intensity * 0.22})`,
+                            border: `1px solid ${rowIndex === colIndex ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.22)'}`,
+                            color: 'var(--text-1)',
+                          }}
+                          className="rounded-lg min-h-12 flex items-center justify-center text-sm font-mono font-semibold"
+                        >
+                          {value}
+                        </div>
+                      )
+                    })}
+                  </Fragment>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Feature importance + Model comparison */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">

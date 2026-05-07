@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, JSON, Text
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, JSON, Text, LargeBinary
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -16,6 +16,7 @@ class Job(Base):
     stage       = Column(String, default="queued")  # current pipeline stage
     logs        = Column(JSON, default=list)        # list of log messages
     result      = Column(JSON, nullable=True)       # final results (accuracy etc)
+    model_blob  = Column(LargeBinary, nullable=True) # durable trained artifact fallback
     error       = Column(Text, nullable=True)       # error message if failed
 
     started_at   = Column(DateTime(timezone=True), nullable=True)

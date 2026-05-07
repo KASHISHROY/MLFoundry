@@ -10,10 +10,12 @@ interface DeployedModel {
   problem_type: string
   accuracy:     number
   features:     string[]
+  input_features?: string[]
   target_column:string
   metrics:      Record<string, number>
   call_count:   number
-  api_key:      string
+  api_key?:     string | null
+  api_key_preview?: string | null
 }
 
 export default function Deploy() {
@@ -47,9 +49,10 @@ export default function Deploy() {
         name:   modelName,
       })
       const modelRes = await api.get(`/deploy/models/${res.data.deployed_model_id}`)
-      setDeployed(modelRes.data)
+      const deployedModel = { ...modelRes.data, api_key: res.data.api_key || modelRes.data.api_key }
+      setDeployed(deployedModel)
       const inputs: Record<string, string> = {}
-      modelRes.data.features.forEach((f: string) => { inputs[f] = '' })
+      ;(deployedModel.input_features || deployedModel.features).forEach((f: string) => { inputs[f] = '' })
       setPredInputs(inputs)
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Deployment failed')
@@ -85,12 +88,12 @@ export default function Deploy() {
   }
 
   const endpoint    = `http://localhost:8000/deploy/v1/predict`
-  const curlExample = deployed ? `curl -X POST "${endpoint}" \\
+  const testerFeatures = deployed ? (deployed.input_features || deployed.features) : []
+  const curlExample = deployed ? `curl -X POST "${endpoint}?api_key=${deployed.api_key || '<your-saved-key>'}" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "api_key": "${deployed.api_key}",
     "data": {
-      ${deployed.features.slice(0, 3).map(f => `"${f}": <value>`).join(',\n      ')}
+      ${testerFeatures.slice(0, 3).map(f => `"${f}": <value>`).join(',\n      ')}
     }
   }'` : ''
 
@@ -179,7 +182,7 @@ export default function Deploy() {
                   { label: 'Algorithm',   value: deployed.model_name },
                   { label: 'Type',        value: deployed.problem_type },
                   { label: 'Performance', value: deployed.accuracy ? `${(deployed.accuracy * 100).toFixed(2)}%` : 'N/A' },
-                  { label: 'Features',    value: `${deployed.features.length} input features` },
+                  { label: 'Features',    value: `${testerFeatures.length} input features` },
                   { label: 'Target',      value: deployed.target_column },
                   { label: 'API calls',   value: deployed.call_count.toString() },
                 ].map((item, i) => (
@@ -203,7 +206,7 @@ export default function Deploy() {
               <div style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)' }}
                 className="rounded-lg px-4 py-3 flex items-center justify-between gap-3">
                 <span style={{ color: '#A5B4FC' }} className="text-sm font-mono flex-1 overflow-hidden">
-                  {showKey ? deployed.api_key : '•'.repeat(40)}
+                  {showKey ? (deployed.api_key || 'API key is shown only when first deployed') : '•'.repeat(40)}
                 </span>
                 <div className="flex items-center gap-2 shrink-0">
                   <button
@@ -214,7 +217,8 @@ export default function Deploy() {
                     {showKey ? '🙈 Hide' : '👁 Show'}
                   </button>
                   <button
-                    onClick={() => copyText(deployed.api_key, setApiKeyCopied)}
+                    onClick={() => deployed.api_key && copyText(deployed.api_key, setApiKeyCopied)}
+                    disabled={!deployed.api_key}
                     style={{
                       backgroundColor: apiKeyCopied ? 'rgba(34,197,94,0.1)' : 'rgba(99,102,241,0.1)',
                       border: `1px solid ${apiKeyCopied ? 'rgba(34,197,94,0.3)' : 'rgba(99,102,241,0.3)'}`,
@@ -296,7 +300,7 @@ export default function Deploy() {
                 Your request must include all of these fields
               </p>
               <div className="flex flex-wrap gap-2">
-                {deployed.features.map((f, i) => (
+                {testerFeatures.map((f, i) => (
                   <span key={i} style={{
                     backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)',
                     color: 'var(--text-2)', fontSize: '11px',
@@ -322,7 +326,7 @@ export default function Deploy() {
               </div>
               <div className="p-5">
                 <div className="grid grid-cols-2 gap-3 mb-4">
-                  {deployed.features.map((feature) => (
+                  {testerFeatures.map((feature) => (
                     <div key={feature}>
                       <label style={{ color: 'var(--text-3)' }} className="text-xs block mb-1 font-mono">
                         {feature}

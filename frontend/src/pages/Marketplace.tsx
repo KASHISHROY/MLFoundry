@@ -12,6 +12,7 @@ interface MarketplaceModel {
   target_column:string
   call_count:   number
   owner:        string
+  description:  string
   endpoint:     string
   created_at:   string
 }
@@ -137,6 +138,12 @@ export default function Marketplace() {
                       </span>
                     </div>
                   </div>
+
+                  {m.description && (
+                    <p style={{ color: 'var(--text-2)' }} className="text-sm leading-relaxed mb-4">
+                      {m.description}
+                    </p>
+                  )}
 
                   {/* Stats */}
                   <div className="grid grid-cols-3 gap-3 mb-4">

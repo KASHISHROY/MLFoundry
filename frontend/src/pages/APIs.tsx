@@ -9,7 +9,8 @@ interface DeployedModel {
   problem_type: string
   accuracy:     number | null
   call_count:   number
-  api_key:      string
+  api_key:      string | null
+  api_key_preview?: string | null
   features:     string[]
   target_column:string
   created_at:   string
@@ -29,7 +30,7 @@ export default function APIs() {
           r.data.map(async (m: any) => {
             try {
               const detail = await api.get(`/deploy/models/${m.id}`)
-              return { ...m, api_key: detail.data.api_key }
+              return { ...m, api_key: detail.data.api_key, api_key_preview: detail.data.api_key_preview }
             } catch {
               return { ...m, api_key: null }
             }
@@ -120,7 +121,7 @@ export default function APIs() {
                       className="rounded-lg px-4 py-2.5 flex items-center justify-between gap-3">
                       <span style={{ color: '#A5B4FC' }} className="text-sm font-mono flex-1 overflow-hidden">
                         {revealedId === m.id
-                          ? (m.api_key || 'Key not available')
+                          ? (m.api_key || `${m.api_key_preview || 'Hidden'} (shown only when first deployed)`)
                           : '•'.repeat(48)
                         }
                       </span>
@@ -134,7 +135,7 @@ export default function APIs() {
                         </button>
                         {m.api_key && (
                           <button
-                            onClick={() => copyKey(m.id, m.api_key)}
+                            onClick={() => m.api_key && copyKey(m.id, m.api_key)}
                             style={{
                               backgroundColor: copiedId === m.id
                                 ? 'rgba(34,197,94,0.1)' : 'rgba(99,102,241,0.1)',
@@ -157,7 +158,7 @@ export default function APIs() {
                     <div style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)' }}
                       className="rounded-lg px-4 py-2.5">
                       <span style={{ color: 'var(--text-2)' }} className="text-xs font-mono">
-                        POST http://localhost:8000/deploy/v1/predict?api_key={m.api_key?.slice(0, 20)}...
+                        POST http://localhost:8000/deploy/v1/predict?api_key={m.api_key ? `${m.api_key.slice(0, 20)}...` : '<your saved key>'}
                       </span>
                     </div>
                   </div>

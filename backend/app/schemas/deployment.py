@@ -9,6 +9,7 @@ class DeployRequest(BaseModel):
 
 class DeployedModelResponse(BaseModel):
     id:           int
+    job_id:       int
     name:         str
     model_name:   str
     problem_type: str

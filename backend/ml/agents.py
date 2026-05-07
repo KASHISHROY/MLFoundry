@@ -22,7 +22,7 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.feature_selection import SelectKBest, f_classif, f_regression
 from sklearn.metrics import (
     accuracy_score, f1_score, precision_score, recall_score,
-    r2_score, mean_squared_error, mean_absolute_error
+    r2_score, mean_squared_error, mean_absolute_error, confusion_matrix
 )
 import xgboost as xgb
 import lightgbm as lgb
@@ -213,7 +213,20 @@ def data_cleaner_agent(state: AgentState) -> AgentState:
     try:
         # Load CSV
         _log(state, f"📂 Loading dataset...")
-        df = pd.read_csv(state["file_path"])
+        file_path = state["file_path"]
+        lower_path = file_path.lower()
+        if lower_path.endswith(".csv"):
+            df = pd.read_csv(file_path)
+        elif lower_path.endswith((".xlsx", ".xls")):
+            df = pd.read_excel(file_path)
+        elif lower_path.endswith(".json"):
+            df = pd.read_json(file_path)
+        elif lower_path.endswith(".parquet"):
+            df = pd.read_parquet(file_path)
+        elif lower_path.endswith(".tsv"):
+            df = pd.read_csv(file_path, sep="\t")
+        else:
+            df = pd.read_csv(file_path)
         state["raw_df"]       = df.copy()
         state["dataset_size"] = len(df)
         _log(state, f"Loaded {len(df)} rows, {len(df.columns)} columns ✓")
@@ -225,6 +238,14 @@ def data_cleaner_agent(state: AgentState) -> AgentState:
             "nulls_filled":       0,
             "ohe_columns":        [],
             "label_columns":      [],
+            "raw_feature_columns": [c for c in df.columns if c != target],
+            "fill_values":         {},
+            "feature_dtypes":      {},
+            "ohe_categories":      {},
+            "ohe_dummy_columns":   {},
+            "label_classes":       {},
+            "target_classes":      [],
+            "cleaned_feature_columns": [],
         }
 
         # Detect problem type
@@ -254,9 +275,20 @@ def data_cleaner_agent(state: AgentState) -> AgentState:
         for col in df.columns:
             if df[col].isnull().sum() > 0:
                 if df[col].dtype == 'object':
-                    df[col] = df[col].fillna(df[col].mode()[0])
+                    fill_value = df[col].mode()[0]
+                    report["fill_values"][col] = str(fill_value)
+                    df[col] = df[col].fillna(fill_value)
                 else:
-                    df[col] = df[col].fillna(df[col].median())
+                    fill_value = float(df[col].median())
+                    report["fill_values"][col] = fill_value
+                    df[col] = df[col].fillna(fill_value)
+            elif col != target:
+                if df[col].dtype == 'object':
+                    report["fill_values"][col] = str(df[col].mode()[0]) if len(df[col].mode()) else ""
+                else:
+                    report["fill_values"][col] = float(df[col].median())
+            if col != target:
+                report["feature_dtypes"][col] = "categorical" if df[col].dtype == 'object' else "numeric"
         if null_count > 0:
             _log(state, f"Filled {null_count} missing values ✓")
 
@@ -270,6 +302,8 @@ def data_cleaner_agent(state: AgentState) -> AgentState:
             if n_unique <= 10:
                 # One Hot Encoding — no fake ordering
                 dummies = pd.get_dummies(df[col], prefix=col, drop_first=True)
+                report["ohe_categories"][col] = [str(v) for v in df[col].dropna().astype(str).unique().tolist()]
+                report["ohe_dummy_columns"][col] = dummies.columns.tolist()
                 df      = pd.concat([df.drop(columns=[col]), dummies], axis=1)
                 report["ohe_columns"].append(col)
                 _log(state, f"One-hot encoded: {col} ({n_unique} categories)")
@@ -278,16 +312,19 @@ def data_cleaner_agent(state: AgentState) -> AgentState:
                 le      = LabelEncoder()
                 df[col] = le.fit_transform(df[col].astype(str))
                 report["label_columns"].append(col)
+                report["label_classes"][col] = le.classes_.astype(str).tolist()
                 _log(state, f"Label encoded: {col} ({n_unique} unique values)")
 
         # Encode target if needed
         if df[target].dtype == 'object':
             le         = LabelEncoder()
             df[target] = le.fit_transform(df[target].astype(str))
+            report["target_classes"] = le.classes_.astype(str).tolist()
             _log(state, f"Encoded target column: {target}")
 
         report["final_rows"]    = len(df)
         report["final_columns"] = len(df.columns)
+        report["cleaned_feature_columns"] = [c for c in df.columns if c != target]
 
         state["cleaned_df"]      = df
         state["cleaning_report"] = report
@@ -325,10 +362,14 @@ def feature_engineer_agent(state: AgentState) -> AgentState:
             "outliers_removed":    0,
             "correlated_dropped":  [],
             "polynomial_added":    0,
+            "polynomial_input_columns": [],
+            "polynomial_feature_names": [],
             "log_transformed":     [],
             "smote_applied":       False,
             "features_selected":   0,
+            "selected_columns":     [],
             "final_feature_count": 0,
+            "final_columns":        [],
         }
 
         # Step 1 — Remove outliers (small datasets only)
@@ -380,6 +421,8 @@ def feature_engineer_agent(state: AgentState) -> AgentState:
                     axis=1
                 )
                 report["polynomial_added"] = n_new
+                report["polynomial_input_columns"] = curr_num
+                report["polynomial_feature_names"] = [f"poly_{i}" for i in range(n_new)]
                 _log(state, f"Added {n_new} polynomial interaction features")
             except Exception:
                 pass
@@ -421,11 +464,13 @@ def feature_engineer_agent(state: AgentState) -> AgentState:
                 sel_cols    = X.columns[selector.get_support()].tolist()
                 X = pd.DataFrame(X_sel, columns=sel_cols)
                 report["features_selected"] = k
+                report["selected_columns"] = sel_cols
                 _log(state, f"Selected top {k} features via F-test ✓")
             except Exception:
                 pass
 
         report["final_feature_count"] = len(X.columns)
+        report["final_columns"] = X.columns.tolist()
 
         df_out          = X.copy()
         df_out[target]  = y.values
@@ -485,12 +530,19 @@ def model_selector_agent(state: AgentState) -> AgentState:
                 y_pred = model.predict(X_test)
 
                 if problem_type == "classification":
+                    labels = sorted(pd.Series(y_test).dropna().unique().tolist())
                     metrics = {
                         "accuracy":  round(float(accuracy_score(y_test, y_pred)), 4),
                         "f1_score":  round(float(f1_score(y_test, y_pred, average='weighted', zero_division=0)), 4),
                         "precision": round(float(precision_score(y_test, y_pred, average='weighted', zero_division=0)), 4),
                         "recall":    round(float(recall_score(y_test, y_pred, average='weighted', zero_division=0)), 4),
                     }
+                    metrics["confusion_matrix"] = confusion_matrix(y_test, y_pred, labels=labels).tolist()
+                    target_classes = (state.get("cleaning_report") or {}).get("target_classes") or []
+                    metrics["confusion_labels"] = [
+                        target_classes[int(label)] if target_classes and int(label) < len(target_classes) else str(label)
+                        for label in labels
+                    ]
                     primary = metrics["accuracy"]
                 else:
                     r2   = r2_score(y_test, y_pred)
@@ -689,6 +741,9 @@ def explainer_agent(state: AgentState) -> AgentState:
             "target":       target,
             "problem_type": problem_type,
             "model_name":   best["model_name"],
+            "cleaning_report":     state.get("cleaning_report") or {},
+            "engineering_report":  state.get("engineering_report") or {},
+            "input_features":      (state.get("cleaning_report") or {}).get("raw_feature_columns", features),
         }
 
         with open(model_path, "wb") as f:

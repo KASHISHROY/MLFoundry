@@ -18,6 +18,7 @@ class DeployedModel(Base):
     features     = Column(JSON, nullable=False)         # list of feature names
     target_column= Column(String, nullable=False)
     model_path   = Column(String, nullable=False)       # path to saved .pkl file
+    model_blob   = Column(LargeBinary, nullable=True)   # durable deployed artifact fallback
     metrics      = Column(JSON, nullable=True)          # full metrics dict
     is_active    = Column(Boolean, default=True)
     call_count   = Column(Integer, default=0)           # how many times called
@@ -36,6 +37,7 @@ class APIKey(Base):
     deployed_model_id= Column(Integer, ForeignKey("deployed_models.id"), nullable=False)
 
     key              = Column(String, unique=True, nullable=False, index=True)
+    key_hash         = Column(String, unique=True, nullable=True, index=True)
     name             = Column(String, nullable=True)     # user label
     is_active        = Column(Boolean, default=True)
     call_count       = Column(Integer, default=0)

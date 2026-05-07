@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, JSON, LargeBinary
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -10,6 +10,7 @@ class Dataset(Base):
     user_id      = Column(Integer, ForeignKey("users.id"), nullable=False)
     name         = Column(String, nullable=False)       # original filename
     file_path    = Column(String, nullable=False)       # where file is stored
+    file_content = Column(LargeBinary, nullable=True)   # durable fallback for Render's ephemeral disk
     file_size    = Column(Integer, nullable=False)      # bytes
     row_count    = Column(Integer, nullable=True)       # how many rows
     column_count = Column(Integer, nullable=True)       # how many columns
